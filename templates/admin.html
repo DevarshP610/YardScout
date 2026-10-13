@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YardScout Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff8f0; color: #1a1206; font-family: 'DM Sans', sans-serif; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: #1a1206; color: #fff8f0; }
+    header a { color: #f5a623; text-decoration: none; margin-left: 14px; }
+    main { max-width: 1000px; margin: 28px auto; padding: 0 18px; }
+    h1, h2 { margin-top: 0; }
+    .panel { background: #fffcf8; border: 1px solid #e8d8c0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    label { display: block; font-size: 12px; margin-bottom: 6px; color: #725b3b; }
+    input { width: min(100%, 520px); padding: 11px; border: 1px solid #d4b896; border-radius: 8px; font: inherit; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; background: #f5a623; color: #1a1206; font: inherit; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .scrape-form { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+    .scrape-form label { width: 100%; }
+    #message, .muted { color: #725b3b; font-size: 14px; }
+    .job, .sale { border-top: 1px solid #e8d8c0; padding: 12px 0; }
+    .job:first-child, .sale:first-child { border-top: 0; }
+    .job strong, .sale strong { display: block; margin-bottom: 4px; }
+    .job small, .sale small { color: #725b3b; }
+    .sale { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+    .sale p { margin: 6px 0; }
+    .delete { background: #ffe8d6; color: #9c3d28; white-space: nowrap; }
+    @media (max-width: 600px) { header { padding: 14px; } .sale { display: block; } .delete { margin-top: 8px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>YardScout · Admin</strong>
+    <nav><a href="/">Public site</a><a href="/logout">Sign out</a></nav>
+  </header>
+  <main>
+    <section class="panel">
+      <h1>Scraper controls</h1>
+      <p class="muted">Search public listings for one city or area. Results are only included when a current/upcoming sale date and mappable location are found.</p>
+      <form id="scrape-form" class="scrape-form">
+        <div>
+          <label for="location">Location (for example, Brandon, Manitoba)</label>
+          <input id="location" name="location" maxlength="160" required placeholder="City, region">
+        </div>
+        <button id="start-scrape" type="submit">Search listings</button>
+      </form>
+      <p id="message" role="status"></p>
+      <div id="jobs" aria-live="polite"></div>
+    </section>
+    <section class="panel">
+      <h2>Listing moderation</h2>
+      <p class="muted">Remove inaccurate scraped listings or user-submitted listings.</p>
+      <div id="sales"><p class="muted">Loading listings…</p></div>
+    </section>
+  </main>
+  <script>
+    const message = document.getElementById('message');
+    const jobsNode = document.getElementById('jobs');
+    const salesNode = document.getElementById('sales');
+    const startButton = document.getElementById('start-scrape');
+
+    async function loadJobs() {
+      const response = await fetch('/api/admin/scrapes');
+      if (!response.ok) throw new Error('Could not load scraper history.');
+      const jobs = await response.json();
+      jobsNode.replaceChildren();
+      if (!jobs.length) {
+        jobsNode.textContent = 'No scraper runs yet.';
+        return false;
+      }
+      for (const job of jobs) {
+        const item = document.createElement('div');
+        item.className = 'job';
+        const title = document.createElement('strong');
+        title.textContent = `${job.status.toUpperCase()} · ${job.location}`;
+        const detail = document.createElement('small');
+        detail.textContent = `${job.result_count} listing(s) saved${job.message ? ` · ${job.message}` : ''}`;
+        item.append(title, detail);
+        jobsNode.append(item);
+      }
+      return jobs[0].status === 'running';
+    }
+
+    async function loadSales() {
+      const response = await fetch('/api/sales');
+      if (!response.ok) throw new Error('Could not load listings.');
+      const sales = await response.json();
+      salesNode.replaceChildren();
+      if (!sales.length) {
+        salesNode.textContent = 'No listings to moderate.';
+        return;
+      }
+      for (const sale of sales) {
+        const item = document.createElement('article');
+        item.className = 'sale';
+        const content = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = sale.title;
+        const info = document.createElement('small');
+        info.textContent = `${sale.date} · ${sale.source_name || sale.user_name || 'User listing'}`;
+        const description = document.createElement('p');
+        description.textContent = sale.description || '';
+        content.append(title, info, description);
+        if (sale.source_url) {
+          const link = document.createElement('a');
+          link.href = sale.source_url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Original listing';
+          content.append(link);
+        }
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'delete';
+        remove.textContent = 'Remove';
+        remove.addEventListener('click', () => deleteSale(sale.id));
+        item.append(content, remove);
+        salesNode.append(item);
+      }
+    }
+
+    async function deleteSale(id) {
+      if (!confirm('Remove this listing?')) return;
+      const response = await fetch(`/api/sales/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        message.textContent = 'Could not remove that listing.';
+        return;
+      }
+      message.textContent = 'Listing removed.';
+      await loadSales();
+    }
+
+    document.getElementById('scrape-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      startButton.disabled = true;
+      message.textContent = 'Starting location search…';
+      try {
+        const response = await fetch('/api/admin/scrapes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: document.getElementById('location').value })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not start scraper.');
+        message.textContent = `Search started for ${result.location}.`;
+        await pollJobs();
+      } catch (error) {
+        message.textContent = error.message;
+        startButton.disabled = false;
+      }
+    });
+
+    async function pollJobs() {
+      try {
+        const running = await loadJobs();
+        if (running) {
+          setTimeout(pollJobs, 3000);
+        } else {
+          startButton.disabled = false;
+          await loadSales();
+        }
+      } catch (error) {
+        message.textContent = error.message;
+        startButton.disabled = false;
+      }
+    }
+
+    Promise.all([pollJobs(), loadSales()]).catch(error => {
+      message.textContent = error.message;
+    });
+  </script>
+</body>
+</html>

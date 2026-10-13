@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Garage Sale Finder</title>
+  <title>YardScout | Find a garage sale near you</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
   <style>
@@ -405,8 +405,8 @@
 
 <header>
   <div class="logo">
-    <div class="logo-icon">🏷️</div>
-    <span class="logo-text">Garage Sale Finder</span>
+    <div class="logo-icon">Y</div>
+    <span class="logo-text">YardScout</span>
   </div>
   <div class="header-right">
     <span id="sale-count-badge">0 Sales</span>
@@ -451,12 +451,12 @@
         <label for="description">What's for sale?</label>
         <textarea id="description" rows="2" placeholder="Furniture, tools, clothes..."></textarea>
       </div>
-      <p class="hint-text" id="map-hint">📍 Click the map to choose a location</p>
+      <p class="hint-text" id="map-hint">Click the map to choose a location</p>
       <button class="btn-add" id="btn-add" disabled>Pin to Map</button>
     </div>
 
     <div class="search-wrap">
-      <input type="text" id="search" placeholder="🔍 Search sales...">
+      <input type="text" id="search" placeholder="Search sales...">
     </div>
 
     <div class="sales-list">
@@ -470,7 +470,7 @@
   <div id="map"></div>
 </div>
 
-<button class="fab" onclick="toggleSidebar()">🏷️</button>
+<button class="fab" onclick="toggleSidebar()">+</button>
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -526,7 +526,7 @@
         transform:rotate(-45deg);
         display:flex; align-items:center; justify-content:center;
         box-shadow:2px 2px 8px rgba(0,0,0,0.3);
-      "><span style="transform:rotate(45deg);font-size:14px;">📍</span></div>`,
+      "><span style="transform:rotate(45deg);font-size:14px;">Y</span></div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -36]
@@ -544,7 +544,7 @@
         transform:rotate(-45deg);
         display:flex; align-items:center; justify-content:center;
         box-shadow:2px 2px 8px rgba(0,0,0,0.3);
-      "><span style="transform:rotate(45deg);font-size:14px;">🏷️</span></div>`,
+      "><span style="transform:rotate(45deg);font-size:14px;">Y</span></div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -36]
@@ -559,7 +559,7 @@
       icon: makeBouncingIcon()
     }).addTo(map);
     document.getElementById('map-hint').textContent =
-      `✅ Location set: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+      `Location set: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
     checkFormReady();
     if (window.innerWidth <= 768) {
       document.getElementById('sidebar').classList.add('open');
@@ -600,11 +600,11 @@
 
     if (response.ok) {
       if (pendingMarker) { map.removeLayer(pendingMarker); pendingMarker = null; }
-      showToast('📍 Garage sale pinned!');
+      showToast('Garage sale pinned.');
       document.getElementById('title').value       = '';
       document.getElementById('date').value        = '';
       document.getElementById('description').value = '';
-      document.getElementById('map-hint').textContent = '📍 Click the map to choose a location';
+      document.getElementById('map-hint').textContent = 'Click the map to choose a location';
       pendingLatLng = null;
       document.getElementById('btn-add').disabled = true;
       if (window.innerWidth <= 768) {
@@ -619,7 +619,7 @@
     if (!confirm('Remove this garage sale?')) return;
     const response = await fetch(`/api/sales/${id}`, { method: 'DELETE' });
     if (response.ok) {
-      showToast('🗑️ Sale removed');
+      showToast('Sale removed.');
       loadSales();
     }
   }
@@ -637,16 +637,20 @@
   // ── ADD MARKER ──
   function addMarkerToMap(sale) {
     const marker = L.marker([sale.lat, sale.lng], { icon: makeIcon() }).addTo(map);
+    const sourceLink = sale.source_url && /^https?:\/\//i.test(sale.source_url)
+      ? `<br><a href="${escAttr(sale.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;">View original listing (${escHtml(sale.source_name || 'source')})</a>`
+      : '';
     marker.bindPopup(`
-      <strong style="font-family:'DM Sans',sans-serif;">${sale.title}</strong><br>
-      <span style="font-size:12px;color:#8B6F47;">📅 ${formatDate(sale.date)}</span><br>
+      <strong style="font-family:'DM Sans',sans-serif;">${escHtml(sale.title)}</strong><br>
+      <span style="font-size:12px;color:#8B6F47;">${formatDate(sale.date)}</span><br>
       ${sale.user_picture
-        ? `<img src="${sale.user_picture}" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px;">`
-        : ''}
-      <span style="font-size:11px;color:#B8956A;">${sale.user_name || ''}</span>
+      ? `<img src="${escAttr(sale.user_picture)}" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px;">`
+      : ''}
+      <span style="font-size:11px;color:#B8956A;">${escHtml(sale.user_name || '')}</span>
       ${sale.description
-        ? `<br><span style="font-size:12px;">${sale.description}</span>`
-        : ''}
+      ? `<br><span style="font-size:12px;">${escHtml(sale.description)}</span>`
+      : ''}
+      ${sourceLink}
     `);
     markers[sale.id] = marker;
   }
@@ -671,7 +675,7 @@
           <button class="btn-delete" onclick="event.stopPropagation(); deleteSale(${sale.id})">×</button>
         ` : ''}
         <div class="sale-card-title">${escHtml(sale.title)}</div>
-        <div class="sale-card-date">📅 ${formatDate(sale.date)}</div>
+        <div class="sale-card-date">${formatDate(sale.date)}</div>
         ${sale.user_name ? `
           <div class="sale-card-user">
             ${sale.user_picture ? `<img src="${sale.user_picture}" alt="">` : ''}
@@ -719,6 +723,7 @@
           <div class="user-pill">
             <img class="user-avatar" src="${user.picture}" alt="${user.name}">
             <span class="user-name">${user.name.split(' ')[0]}</span>
+            ${user.is_admin ? '<a href="/admin" class="btn-logout">Admin</a>' : ''}
             <a href="/logout" class="btn-logout">Sign out</a>
           </div>`;
       } else {
@@ -738,10 +743,14 @@
   }
 
   function escHtml(str) {
-    return str
+    return String(str || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function escAttr(str) {
+    return escHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // ── INIT ──
