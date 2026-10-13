@@ -381,6 +381,20 @@
       line-height: 1.5;
     }
 
+    .load-more-sales {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface-soft);
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .load-more-sales:hover { border-color: var(--accent); }
+
     .btn-delete {
       position: absolute;
       top: 8px; right: 8px;
@@ -1480,8 +1494,13 @@
   // ── STATE ──
   let pendingLatLng    = null;
   let pendingMarker    = null;
-  let markers          = {};
+  const markers        = new Map();
+  const markerLayer    = L.layerGroup().addTo(map);
+  const saleIcon       = makeIcon();
+  const listingPageSize = 50;
   let allSales         = [];
+  let filteredSales    = [];
+  let visibleSalesCount = listingPageSize;
   let currentUserEmail = null;
 
   document.getElementById('locate-me').addEventListener('click', () => {
@@ -1567,6 +1586,8 @@
       document.getElementById('sidebar').classList.add('open');
     }
   });
+
+  map.on('moveend', syncVisibleMarkers);
 
   // ── FORM CHECK ──
   function checkFormReady() {
@@ -1660,9 +1681,16 @@
       const sales = await response.json();
       if (!Array.isArray(sales)) throw new Error('Sales response was not a list.');
       allSales = sales;
-      try { localStorage.setItem('yardscout-sales-cache', JSON.stringify(sales)); }
-      catch { /* The live listings still work when local caching is unavailable. */ }
       renderSales(sales);
+      const cacheSales = () => {
+        try { localStorage.setItem('yardscout-sales-cache', JSON.stringify(sales)); }
+        catch { /* The live listings still work when local caching is unavailable. */ }
+      };
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(cacheSales, { timeout: 1500 });
+      } else {
+        window.setTimeout(cacheSales, 0);
+      }
     } catch (error) {
       let cachedSales = [];
       try {
@@ -1683,19 +1711,45 @@
   }
 
   function renderSales(sales) {
-    Object.values(markers).forEach(m => map.removeLayer(m));
-    markers = {};
-    sales.forEach(sale => addMarkerToMap(sale));
+    markerLayer.clearLayers();
+    markers.clear();
+    syncVisibleMarkers();
     filterAndRenderSales();
   }
 
-  // ── ADD MARKER ──
-  function addMarkerToMap(sale) {
-    const marker = L.marker([sale.lat, sale.lng], { icon: makeIcon() }).addTo(map);
+  function syncVisibleMarkers() {
+    const bounds = map.getBounds().pad(0.15);
+    const visibleSales = new Map();
+    allSales.forEach(sale => {
+      const latitude = Number(sale.lat);
+      const longitude = Number(sale.lng);
+      if (Number.isFinite(latitude) && Number.isFinite(longitude)
+        && bounds.contains([latitude, longitude])) {
+        visibleSales.set(String(sale.id), { sale, latitude, longitude });
+      }
+    });
+
+    markers.forEach((marker, id) => {
+      if (!visibleSales.has(id)) {
+        markerLayer.removeLayer(marker);
+        markers.delete(id);
+      }
+    });
+
+    visibleSales.forEach(({ sale, latitude, longitude }, id) => {
+      if (markers.has(id)) return;
+      const marker = L.marker([latitude, longitude], { icon: saleIcon });
+      marker.bindPopup(() => createSalePopup(sale));
+      markerLayer.addLayer(marker);
+      markers.set(id, marker);
+    });
+  }
+
+  function createSalePopup(sale) {
     const sourceLink = sale.source_url && /^https?:\/\//i.test(sale.source_url)
       ? `<br><a href="${escAttr(sale.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;">View original listing (${escHtml(sale.source_name || 'source')})</a>`
       : '';
-    marker.bindPopup(`
+    return `
       <strong>${escHtml(sale.title)}</strong><br>
       <span style="font-size:12px;color:#8B6F47;">${formatDate(sale.date)}</span><br>
       ${sale.user_picture
@@ -1706,25 +1760,25 @@
       ? `<br><span style="font-size:12px;">${escHtml(sale.description)}</span>`
       : ''}
       ${sourceLink}
-    `);
-    markers[sale.id] = marker;
+    `;
   }
 
   // ── RENDER LIST ──
-  function renderList(sales) {
+  function renderList() {
     const container = document.getElementById('sales-container');
     const header    = document.getElementById('list-header');
     const badge     = document.getElementById('sale-count-badge');
 
-    header.textContent = `${sales.length} active listing${sales.length !== 1 ? 's' : ''}`;
-    badge.textContent  = `${sales.length} Sale${sales.length !== 1 ? 's' : ''}`;
+    header.textContent = `${filteredSales.length} active listing${filteredSales.length !== 1 ? 's' : ''}`;
+    badge.textContent  = `${filteredSales.length} Sale${filteredSales.length !== 1 ? 's' : ''}`;
 
-    if (sales.length === 0) {
+    if (filteredSales.length === 0) {
       container.innerHTML = `<div class="no-sales">No sales match that search yet.<br>Try another word or explore the map.</div>`;
       return;
     }
 
-    container.innerHTML = sales.map(sale => `
+    const visibleSales = filteredSales.slice(0, visibleSalesCount);
+    container.innerHTML = visibleSales.map(sale => `
       <div class="sale-card" role="button" tabindex="0" aria-label="${escAttr(`${sale.title}, ${formatDate(sale.date)}. Select to view on map.`)}" onclick="focusSale(${sale.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();focusSale(${sale.id})}">
         ${sale.user_email === currentUserEmail ? `
           <button class="btn-delete" onclick="event.stopPropagation(); deleteSale(${sale.id})">×</button>
@@ -1741,16 +1795,36 @@
           : ''}
       </div>
     `).join('');
+    if (visibleSales.length < filteredSales.length) {
+      const remaining = filteredSales.length - visibleSales.length;
+      container.insertAdjacentHTML('beforeend',
+        `<button class="load-more-sales" type="button">Load 50 more listings (${remaining} remaining)</button>`);
+      container.querySelector('.load-more-sales').addEventListener('click', () => {
+        visibleSalesCount += listingPageSize;
+        renderList();
+      });
+    }
   }
 
   // ── FOCUS SALE ──
   function focusSale(id) {
-    if (markers[id]) {
-      map.setView(markers[id].getLatLng(), 16);
-      markers[id].openPopup();
-      if (window.innerWidth <= 768) {
-        document.getElementById('sidebar').classList.remove('open');
-      }
+    const sale = allSales.find(item => String(item.id) === String(id));
+    if (!sale) return;
+
+    const markerId = String(sale.id);
+    const openMarker = () => {
+      const marker = markers.get(markerId);
+      if (marker) marker.openPopup();
+    };
+    if (markers.has(markerId)) {
+      map.setView(markers.get(markerId).getLatLng(), 16);
+      openMarker();
+    } else {
+      map.once('moveend', openMarker);
+      map.setView([sale.lat, sale.lng], 16);
+    }
+    if (window.innerWidth <= 768) {
+      document.getElementById('sidebar').classList.remove('open');
     }
   }
 
@@ -1761,10 +1835,12 @@
 
   function filterAndRenderSales(query = document.getElementById('search').value) {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    renderList(allSales.filter(sale =>
+    filteredSales = allSales.filter(sale =>
       String(sale.title || '').toLocaleLowerCase().includes(normalizedQuery)
       || String(sale.description || '').toLocaleLowerCase().includes(normalizedQuery)
-    ));
+    );
+    visibleSalesCount = listingPageSize;
+    renderList();
   }
 
   // ── LOCAL DRAFT ──
@@ -1860,11 +1936,9 @@
   }
 
   // ── INIT ──
-  window.addEventListener('load', () => {
-    restoreSaleDraft();
-    loadUser();
-    loadSales();
-  });
+  restoreSaleDraft();
+  loadUser();
+  loadSales();
 
 </script>
 </body>
