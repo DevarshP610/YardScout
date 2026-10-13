@@ -19,6 +19,12 @@
     button:disabled { opacity: .55; cursor: wait; }
     .scrape-form { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
     .scrape-form label { width: 100%; }
+    .location-picker { position: relative; width: min(100%, 520px); }
+    .location-picker input { width: 100%; }
+    #location-suggestions { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; max-height: 260px; overflow-y: auto; background: white; border: 1px solid #d4b896; border-radius: 8px; box-shadow: 0 8px 20px rgba(26,18,6,.15); }
+    #location-suggestions[hidden] { display: none; }
+    .location-option { display: block; width: 100%; border-radius: 0; background: white; color: #1a1206; text-align: left; font-weight: 400; border-bottom: 1px solid #eee4d7; }
+    .location-option:hover, .location-option:focus { background: #fff3e0; }
     #message, .muted { color: #725b3b; font-size: 14px; }
     .job, .sale { border-top: 1px solid #e8d8c0; padding: 12px 0; }
     .job:first-child, .sale:first-child { border-top: 0; }
@@ -38,14 +44,16 @@
   <main>
     <section class="panel">
       <h1>Scraper controls</h1>
-      <p class="muted">Search public listings for one city or area. Results are only included when a current/upcoming sale date and mappable location are found.</p>
+      <p class="muted">Choose a US or Canadian city or town from the suggestions. Results depend on the available source for that location; this is not a comprehensive search of social media or classified sites.</p>
       <form id="scrape-form" class="scrape-form">
-        <div>
-          <label for="location">Location (for example, Brandon, Manitoba)</label>
-          <input id="location" name="location" maxlength="160" required placeholder="City, region">
+        <div class="location-picker">
+          <label for="location">City or town</label>
+          <input id="location" name="location" maxlength="160" required placeholder="Start typing a place" autocomplete="off" aria-autocomplete="list" aria-controls="location-suggestions" aria-expanded="false">
+          <div id="location-suggestions" role="listbox" hidden></div>
         </div>
         <button id="start-scrape" type="submit">Search listings</button>
       </form>
+      <p class="muted">Suggestions use OpenStreetMap data via Photon and cover places across the US and Canada. eBrandon currently provides garage-sale listings for Brandon, Manitoba. An optional Ticketmaster API lookup can return exact garage-sale or yard-sale event matches, but is not a general garage-sale feed.</p>
       <p id="message" role="status"></p>
       <div id="jobs" aria-live="polite"></div>
     </section>
@@ -60,6 +68,77 @@
     const jobsNode = document.getElementById('jobs');
     const salesNode = document.getElementById('sales');
     const startButton = document.getElementById('start-scrape');
+    const locationInput = document.getElementById('location');
+    const suggestionsNode = document.getElementById('location-suggestions');
+    let selectedPlace = null;
+    let suggestionTimer = null;
+    let suggestionRequest = 0;
+
+    function hideSuggestions() {
+      suggestionsNode.hidden = true;
+      suggestionsNode.replaceChildren();
+      locationInput.setAttribute('aria-expanded', 'false');
+    }
+
+    function selectPlace(place) {
+      selectedPlace = place;
+      locationInput.value = place.label;
+      hideSuggestions();
+      message.textContent = `Selected ${place.label}.`;
+    }
+
+    locationInput.addEventListener('input', () => {
+      selectedPlace = null;
+      clearTimeout(suggestionTimer);
+      const query = locationInput.value.trim();
+      if (query.length < 2) {
+        hideSuggestions();
+        return;
+      }
+
+      suggestionTimer = setTimeout(async () => {
+        const requestId = ++suggestionRequest;
+        suggestionsNode.hidden = false;
+        locationInput.setAttribute('aria-expanded', 'true');
+        suggestionsNode.textContent = 'Searching places…';
+        try {
+          const response = await fetch(`/api/admin/location-suggestions?q=${encodeURIComponent(query)}`);
+          const results = await response.json();
+          if (requestId !== suggestionRequest || query !== locationInput.value.trim()) return;
+          if (!response.ok) throw new Error(results.error || 'Could not search locations.');
+          suggestionsNode.replaceChildren();
+          if (!results.length) {
+            suggestionsNode.textContent = 'No matching US or Canadian cities found.';
+          }
+          for (const place of results) {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'location-option';
+            option.setAttribute('role', 'option');
+            option.textContent = place.label;
+            option.addEventListener('click', () => selectPlace(place));
+            suggestionsNode.append(option);
+          }
+        } catch (error) {
+          if (requestId === suggestionRequest) {
+            suggestionsNode.textContent = error.message;
+          }
+        }
+      }, 350);
+    });
+
+    locationInput.addEventListener('keydown', event => {
+      if (event.key === 'Escape') hideSuggestions();
+      if (event.key === 'Enter' && !selectedPlace && !suggestionsNode.hidden) {
+        event.preventDefault();
+        const firstOption = suggestionsNode.querySelector('button');
+        if (firstOption) firstOption.click();
+      }
+    });
+
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.location-picker')) hideSuggestions();
+    });
 
     async function loadJobs() {
       const response = await fetch('/api/admin/scrapes');
@@ -140,7 +219,12 @@
         const response = await fetch('/api/admin/scrapes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ location: document.getElementById('location').value })
+          body: JSON.stringify({
+            location: selectedPlace && locationInput.value === selectedPlace.label ? selectedPlace.label : null,
+            latitude: selectedPlace && selectedPlace.latitude,
+            longitude: selectedPlace && selectedPlace.longitude,
+            country_code: selectedPlace && selectedPlace.country_code
+          })
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Could not start scraper.');

@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from datetime import date
 from functools import wraps
 
+import requests
+
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -172,10 +174,15 @@ def update_scrape_job(job_id, status, result_count=0, message=None):
     conn.close()
 
 
-def execute_scrape_job(job_id, location):
+def execute_scrape_job(job_id, location, latitude, longitude, country_code):
     try:
         from scraper import run_location_scrape
-        count, message = run_location_scrape(location)
+        count, message = run_location_scrape(
+            location,
+            latitude=latitude,
+            longitude=longitude,
+            country_code=country_code,
+        )
         update_scrape_job(job_id, "completed", count, message)
     except Exception as exc:
         print(f"Scrape job {job_id} failed: {exc}", file=sys.stderr)
@@ -245,6 +252,85 @@ def admin_scrapes():
     return jsonify(jobs)
 
 
+@app.route("/api/admin/location-suggestions")
+@admin_required
+def admin_location_suggestions():
+    query = request.args.get("q", "").strip()
+    if len(query) < 2:
+        return jsonify([])
+    try:
+        response = requests.get(
+            "https://photon.komoot.io/api/",
+            params={"q": query, "limit": 40, "lang": "en"},
+            headers={"User-Agent": "YardScout/1.0 (location suggestions)"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("features"), list):
+            raise ValueError("Location service returned an invalid response.")
+        features = payload["features"]
+    except (requests.RequestException, ValueError) as exc:
+        app.logger.warning("Location suggestions unavailable: %s", exc)
+        return jsonify({"error": "Location suggestions are temporarily unavailable."}), 502
+
+    suggestions = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        properties = feature.get("properties")
+        geometry = feature.get("geometry")
+        if not isinstance(properties, dict) or not isinstance(geometry, dict):
+            continue
+        raw_country_code = properties.get("countrycode")
+        country_code = raw_country_code.upper() if isinstance(raw_country_code, str) else ""
+        place_type = properties.get("type")
+        name = properties.get("name")
+        coordinates = geometry.get("coordinates")
+        if (
+            country_code not in {"US", "CA"}
+            or place_type not in {"city", "town", "village", "municipality", "locality"}
+            or not isinstance(name, str)
+            or not name.strip()
+            or not isinstance(coordinates, list)
+            or len(coordinates) != 2
+        ):
+            continue
+        longitude, latitude = coordinates
+        try:
+            latitude = float(latitude)
+            longitude = float(longitude)
+        except (TypeError, ValueError):
+            continue
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            continue
+
+        label_parts = [name]
+        region = properties.get("state")
+        country = properties.get("country")
+        region = region if isinstance(region, str) else ""
+        country = country if isinstance(country, str) else ""
+        if region and region.casefold() != name.casefold():
+            label_parts.append(region)
+        if country:
+            label_parts.append(country)
+        label = ", ".join(label_parts)
+        if any(item["label"] == label for item in suggestions):
+            continue
+        suggestions.append({
+            "label": label,
+            "city": name,
+            "region": region or "",
+            "country": country or "",
+            "country_code": country_code,
+            "latitude": latitude,
+            "longitude": longitude,
+        })
+        if len(suggestions) == 6:
+            break
+    return jsonify(suggestions)
+
+
 @app.route("/api/admin/scrapes", methods=["POST"])
 @admin_required
 def start_scrape():
@@ -257,6 +343,20 @@ def start_scrape():
     location = location.strip()
     if not location or len(location) > 160:
         return jsonify({"error": "Enter a location up to 160 characters."}), 400
+    raw_latitude = data.get("latitude")
+    raw_longitude = data.get("longitude")
+    if raw_latitude is None or raw_longitude is None:
+        return jsonify({"error": "Choose a location from the suggestions."}), 400
+    try:
+        latitude = float(raw_latitude)
+        longitude = float(raw_longitude)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Choose a location from the suggestions."}), 400
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return jsonify({"error": "The selected location has invalid coordinates."}), 400
+    country_code = data.get("country_code")
+    if not isinstance(country_code, str) or country_code not in {"US", "CA"}:
+        return jsonify({"error": "Choose a location in the United States or Canada."}), 400
     if not scrape_lock.acquire(blocking=False):
         return jsonify({"error": "A scrape is already running. Check its status before starting another."}), 409
 
@@ -286,7 +386,7 @@ def start_scrape():
 
     threading.Thread(
         target=execute_scrape_job,
-        args=(job_id, location),
+        args=(job_id, location, latitude, longitude, country_code),
         daemon=True,
         name=f"scrape-job-{job_id}"
     ).start()

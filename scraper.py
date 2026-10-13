@@ -1,16 +1,18 @@
+import os
 import re
 import time
-from datetime import date, datetime
-from urllib.parse import quote
+from datetime import date, datetime, timezone
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {
-    "User-Agent": "YardScout/1.0 (https://github.com/DevarshP610/Garage-Sale-Finder)"
+    "User-Agent": "YardScout/1.0 (https://github.com/DevarshP610/YardScout)"
 }
 REQUEST_TIMEOUT = 18
 SCRAPER_EMAIL = "scraper@auto.com"
+TICKETMASTER_API_KEY = os.environ.get("TICKETMASTER_API_KEY")
 
 
 def _fetch(url):
@@ -65,13 +67,36 @@ def _geocode(query):
     return None
 
 
-def _source_city(location):
-    city = location.split(",", 1)[0].strip()
-    return re.sub(r"[^a-z0-9-]", "", city.casefold().replace(" ", "-"))
+def _geohash(latitude, longitude, precision=8):
+    base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+    lat_range = [-90.0, 90.0]
+    lon_range = [-180.0, 180.0]
+    bits = (16, 8, 4, 2, 1)
+    output = []
+    value = 0
+    bit_index = 0
+    use_longitude = True
+    while len(output) < precision:
+        bounds = lon_range if use_longitude else lat_range
+        coordinate = longitude if use_longitude else latitude
+        midpoint = (bounds[0] + bounds[1]) / 2
+        if coordinate >= midpoint:
+            value |= bits[bit_index]
+            bounds[0] = midpoint
+        else:
+            bounds[1] = midpoint
+        use_longitude = not use_longitude
+        if bit_index < 4:
+            bit_index += 1
+        else:
+            output.append(base32[value])
+            bit_index = 0
+            value = 0
+    return "".join(output)
 
 
-def _scrape_ebrandon(location):
-    if "brandon" not in location.casefold():
+def _scrape_ebrandon(location, country_code):
+    if country_code != "CA" or location.split(",", 1)[0].casefold() != "brandon":
         return []
 
     category_url = "https://www.ebrandon.ca/browseads.aspx?cat_id=81"
@@ -79,12 +104,12 @@ def _scrape_ebrandon(location):
     item_links = []
     for anchor in soup.select('a[href*="ItemView.aspx?item_id="]'):
         href = anchor.get("href", "")
-        if "cat_id=81" in href and href not in item_links:
+        if isinstance(href, str) and "cat_id=81" in href and href not in item_links:
             item_links.append(href)
 
     listings = []
     for href in item_links[:30]:
-        item_url = requests.compat.urljoin(category_url, href)
+        item_url = urljoin(category_url, href)
         try:
             item_soup = BeautifulSoup(_fetch(item_url).text, "html.parser")
         except requests.RequestException as exc:
@@ -94,7 +119,8 @@ def _scrape_ebrandon(location):
         time.sleep(1.0)
 
         title_element = item_soup.find("meta", property="og:title")
-        title = title_element.get("content", "") if title_element else ""
+        title_value = title_element.get("content", "") if title_element else ""
+        title = title_value if isinstance(title_value, str) else ""
         title = re.sub(r",\s*eBrandon Classifieds$", "", title, flags=re.IGNORECASE).strip()
         if not title or not re.search(r"garage|yard|moving|estate|sale", title, re.I):
             continue
@@ -145,56 +171,117 @@ def _scrape_ebrandon(location):
         })
     return listings
 
+def _scrape_ticketmaster(location, latitude, longitude, country_code):
+    if not TICKETMASTER_API_KEY:
+        return [], "Ticketmaster: skipped (set TICKETMASTER_API_KEY to enable its official API)"
 
-def _scrape_craigslist(location):
-    city = _source_city(location)
-    if not city:
-        return []
-    url = f"https://{city}.craigslist.org/search/gms?query={quote('garage sale')}&format=rss"
-    try:
-        response = _fetch(url)
-    except requests.RequestException as exc:
-        raise requests.RequestException(f"Craigslist is unavailable for {location!r}: {exc}") from exc
+    events_by_id = {}
+    errors = []
+    for keyword in ("garage sale", "yard sale"):
+        try:
+            response = requests.get(
+                "https://app.ticketmaster.com/discovery/v2/events.json",
+                params={
+                    "apikey": TICKETMASTER_API_KEY,
+                    "keyword": keyword,
+                    "geoPoint": _geohash(latitude, longitude),
+                    "radius": 50,
+                    "unit": "miles",
+                    "countryCode": country_code,
+                    "startDateTime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "sort": "date,asc",
+                    "size": 100,
+                },
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Ticketmaster returned an invalid response.")
+            embedded = payload.get("_embedded")
+            if not isinstance(embedded, dict):
+                continue
+            events = embedded.get("events", [])
+            if not isinstance(events, list):
+                continue
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                event_id = event.get("id")
+                if isinstance(event_id, (str, int)):
+                    events_by_id[event_id] = event
+        except requests.RequestException as exc:
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None)
+            if isinstance(status_code, int):
+                detail = f"HTTP {status_code}"
+            elif isinstance(exc, requests.Timeout):
+                detail = "request timed out"
+            else:
+                detail = "request failed"
+            errors.append(f"{keyword}: {detail}")
+        except ValueError:
+            errors.append(f"{keyword}: invalid API response")
+    if errors and not events_by_id:
+        raise requests.RequestException("; ".join(errors))
 
-    soup = BeautifulSoup(response.content, "xml")
     listings = []
-    for item in soup.find_all("item")[:30]:
-        title = item.title.get_text(" ", strip=True) if item.title else ""
-        description = item.description.get_text(" ", strip=True) if item.description else ""
-        sale_date = _parse_sale_date(f"{title} {description}")
-        if not sale_date or sale_date < date.today().isoformat():
+    for event in events_by_id.values():
+        name = event.get("name")
+        dates = event.get("dates")
+        start = dates.get("start") if isinstance(dates, dict) else None
+        event_date = start.get("localDate") if isinstance(start, dict) else None
+        if not isinstance(name, str) or not isinstance(event_date, str):
+            continue
+        try:
+            event_date = date.fromisoformat(event_date).isoformat()
+        except ValueError:
+            continue
+        if event_date < date.today().isoformat():
             continue
 
-        point = item.find("georss:point") or item.find("point")
-        coordinates = None
-        if point:
-            try:
-                lat, lng = map(float, point.get_text(strip=True).split())
-                if -90 <= lat <= 90 and -180 <= lng <= 180:
-                    coordinates = lat, lng
-            except ValueError:
-                coordinates = None
-        if not coordinates:
-            coordinates = _geocode(location)
-        if not coordinates:
+        event_embedded = event.get("_embedded")
+        venues = event_embedded.get("venues", []) if isinstance(event_embedded, dict) else []
+        venue = venues[0] if isinstance(venues, list) and venues and isinstance(venues[0], dict) else {}
+        venue_location = venue.get("location")
+        if not isinstance(venue_location, dict):
+            continue
+        raw_latitude = venue_location.get("latitude")
+        raw_longitude = venue_location.get("longitude")
+        if raw_latitude is None or raw_longitude is None:
+            continue
+        try:
+            event_latitude = float(raw_latitude)
+            event_longitude = float(raw_longitude)
+        except (TypeError, ValueError):
+            continue
+        if not (-90 <= event_latitude <= 90 and -180 <= event_longitude <= 180):
             continue
 
-        link = item.link.get_text(strip=True) if item.link else ""
+        info = event.get("info") or event.get("pleaseNote") or ""
+        venue_name = venue.get("name")
+        if isinstance(venue_name, str) and venue_name:
+            info = f"{venue_name}. {info}".strip()
+        source_url = event.get("url")
+        if not isinstance(source_url, str) or not source_url.startswith("https://"):
+            continue
         listings.append({
-            "title": title[:250],
-            "date": sale_date,
-            "description": description[:2000],
-            "lat": coordinates[0],
-            "lng": coordinates[1],
-            "source_name": "Craigslist",
-            "source_url": link,
+            "title": name[:250],
+            "date": event_date,
+            "description": str(info)[:2000],
+            "lat": event_latitude,
+            "lng": event_longitude,
+            "source_name": "Ticketmaster",
+            "source_url": source_url,
         })
-        time.sleep(0.25)
-    return listings
+    summary = f"Ticketmaster: {len(listings)} current/upcoming event(s) near {location}"
+    if errors:
+        summary += f" (some searches unavailable: {'; '.join(errors)})"
+    return listings, summary
 
 
 def _save_listings(listings):
-    from app import USE_SQLITE, get_db
+    from app import USE_SQLITE, get_db, row_as_dict
 
     conn = get_db()
     cur = conn.cursor()
@@ -206,6 +293,7 @@ def _save_listings(listings):
             else:
                 cur.execute("SELECT id FROM sales WHERE source_url = %s", (listing["source_url"],))
             existing = cur.fetchone()
+            existing_id = row_as_dict(existing)["id"] if existing else None
             values = (
                 listing["title"],
                 listing["date"],
@@ -225,7 +313,7 @@ def _save_listings(listings):
                             source_name = ?, user_email = ?, user_name = ?
                         WHERE id = ?
                         """,
-                        (*values[:6], values[7], values[8], existing["id"]),
+                        (*values[:6], values[7], values[8], existing_id),
                     )
                 else:
                     cur.execute(
@@ -234,7 +322,7 @@ def _save_listings(listings):
                             source_name = %s, user_email = %s, user_name = %s
                         WHERE id = %s
                         """,
-                        (*values[:6], values[7], values[8], existing["id"]),
+                        (*values[:6], values[7], values[8], existing_id),
                     )
             elif USE_SQLITE:
                 cur.execute(
@@ -265,29 +353,44 @@ def _save_listings(listings):
     return saved
 
 
-def run_location_scrape(location):
+def run_location_scrape(location, latitude=None, longitude=None, country_code=None):
     listings = []
     source_results = []
 
     try:
-        ebrandon = _scrape_ebrandon(location)
+        ebrandon = _scrape_ebrandon(location, country_code)
         listings.extend(ebrandon)
-        if "brandon" in location.casefold():
+        if country_code == "CA" and location.split(",", 1)[0].casefold() == "brandon":
             source_results.append(f"eBrandon: {len(ebrandon)} current/upcoming sale(s)")
         else:
             source_results.append("eBrandon: skipped (only covers Brandon, Manitoba)")
     except requests.RequestException as exc:
         source_results.append(f"eBrandon: unavailable ({exc})")
 
+    if latitude is None or longitude is None:
+        coordinates = _geocode(location)
+        if coordinates:
+            latitude, longitude = coordinates
+
     try:
-        craigslist = _scrape_craigslist(location)
-        listings.extend(craigslist)
-        source_results.append(f"Craigslist: {len(craigslist)} current/upcoming sale(s)")
+        if latitude is None or longitude is None:
+            raise requests.RequestException("Could not resolve the selected location coordinates.")
+        ticketmaster, ticketmaster_summary = _scrape_ticketmaster(
+            location,
+            latitude,
+            longitude,
+            country_code or "US",
+        )
+        listings.extend(ticketmaster)
+        source_results.append(ticketmaster_summary)
     except requests.RequestException as exc:
-        source_results.append(f"Craigslist: unavailable ({exc})")
-    source_results.append(
-        "Facebook: not scanned; public listings are not reliably accessible without Meta API access."
-    )
+        source_results.append(f"Ticketmaster: unavailable ({exc})")
+    source_results.extend((
+        "Craigslist: not scanned; its terms prohibit unlicensed automated searching.",
+        "Kijiji: no verified public listing API/feed; not scanned.",
+        "Facebook: requires approved Meta access; not scanned.",
+        "eBay: item ads are not garage-sale events; not imported as events.",
+    ))
 
     saved = _save_listings(listings)
     return saved, "; ".join(source_results)

@@ -21,7 +21,7 @@ Use the repository to explore how the pieces fit together:
 3. Read `scraper.py` to see how supported public sources are queried, listings are parsed, and results are saved.
 4. Review `templates/admin.html` for the separate admin interface.
 
-The scraper currently has limited source and location coverage. It only imports listings when it can identify a future sale date and a usable location. Automated collection from Facebook is not included.
+The location picker uses Photon with OpenStreetMap data to suggest US and Canadian cities and towns; it is not limited to a hardcoded list of 50 markets. That expands place selection, not listing-source coverage. The verified garage-sale source is eBrandon for Brandon, Manitoba. An optional `TICKETMASTER_API_KEY` enables exact-phrase searches through Ticketmaster's official event API, but Ticketmaster is not a general garage-sale feed and may return no relevant events. The app does not scrape Facebook, Kijiji, or Craigslist, and does not treat eBay item ads as sale events.
 
 ## Run and deploy
 
