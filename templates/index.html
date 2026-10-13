@@ -5,17 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YardScout | Find a garage sale near you</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      color-scheme: light;
+      --page: #f5f5f2;
+      --surface: #ffffff;
+      --surface-soft: #f7f7f5;
+      --ink: #1d1d1f;
+      --muted: #6e6e73;
+      --line: #e5e5e7;
+      --accent: #cf7629;
+      --accent-strong: #a95312;
+      --accent-soft: #fbf1e7;
+      --success: #327354;
+      --danger: #a43f32;
+      --shadow: 0 1px 2px rgba(20, 20, 18, .05), 0 8px 28px rgba(20, 20, 18, .06);
+      --focus: #a95312;
+      --map-control: #ffffff;
+    }
+
+    body[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #171816;
+      --surface: #20211f;
+      --surface-soft: #292a27;
+      --ink: #f4f3ef;
+      --muted: #b2b2ad;
+      --line: #3a3b37;
+      --accent: #e4a15c;
+      --accent-strong: #f0b777;
+      --accent-soft: #3a2c20;
+      --success: #88c5a5;
+      --danger: #f19b8f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 8px 28px rgba(0, 0, 0, .18);
+      --focus: #f0b777;
+      --map-control: #282925;
+    }
+
     body {
-      font-family: 'DM Sans', sans-serif;
-      background: #FFF8F0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--page);
+      color: var(--ink);
       height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: background-color .25s cubic-bezier(.2, .7, .2, 1), color .25s cubic-bezier(.2, .7, .2, 1);
     }
 
     header {
@@ -36,16 +74,17 @@
 
     .logo-icon {
       width: 36px; height: 36px;
-      background: #F5A623;
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #ffffff;
     }
 
     .logo-text {
-      font-family: 'Playfair Display', serif;
-      color: #FFF8F0;
-      font-size: 20px;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: -.045em;
     }
 
     .header-right {
@@ -55,21 +94,22 @@
     }
 
     #sale-count-badge {
-      background: #F5A623;
-      color: #1A1206;
+      background: var(--surface-soft);
+      color: var(--muted);
       font-size: 12px;
-      font-weight: 500;
-      padding: 4px 14px;
-      border-radius: 20px;
+      font-weight: 550;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
     }
 
     .btn-login {
-      background: #F5A623;
-      color: #1A1206;
+      background: var(--ink);
+      color: var(--surface);
       border: none;
-      border-radius: 8px;
-      padding: 7px 14px;
-      font-family: 'DM Sans', sans-serif;
+      border-radius: 9px;
+      padding: 9px 14px;
+      font-family: inherit;
       font-weight: 500;
       font-size: 13px;
       cursor: pointer;
@@ -81,8 +121,9 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 20px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 999px;
       padding: 4px 12px 4px 4px;
     }
 
@@ -93,14 +134,14 @@
     }
 
     .user-name {
-      color: #FFF8F0;
+      color: var(--ink);
       font-size: 13px;
     }
 
     .btn-logout {
       background: none;
-      border: 1px solid rgba(255,255,255,0.3);
-      color: #FFF8F0;
+      border: 1px solid var(--line);
+      color: var(--ink);
       border-radius: 6px;
       padding: 3px 8px;
       font-size: 11px;
@@ -110,15 +151,64 @@
 
     .menu-btn {
       display: none;
-      background: #F5A623;
-      border: none;
-      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 9px;
       width: 36px; height: 36px;
       font-size: 18px;
       cursor: pointer;
       align-items: center;
       justify-content: center;
     }
+
+    .utility-button {
+      min-width: 38px;
+      height: 38px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background .18s cubic-bezier(.2,.7,.2,1), border-color .18s cubic-bezier(.2,.7,.2,1), transform .18s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .utility-button:hover { background: var(--surface-soft); border-color: #c7c7c9; }
+    .utility-button:active { transform: scale(.97); }
+    .utility-button svg { width: 17px; height: 17px; }
+
+    .command-hint {
+      padding: 2px 5px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .offline-banner {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 6px 16px;
+      background: #fff0df;
+      color: #673a18;
+      border-bottom: 1px solid #e5c7a7;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    body[data-theme="dark"] .offline-banner { background: #3a2c20; color: #f6d7b6; border-color: #63472e; }
+    .offline-banner.is-visible { display: flex; }
+    .offline-dot { width: 7px; height: 7px; border-radius: 50%; background: #b76521; }
 
     .layout {
       display: flex;
@@ -128,41 +218,43 @@
     }
 
     .sidebar {
-      width: 320px;
-      background: #FFFCF8;
-      border-right: 1px solid #E8D8C0;
+      width: 360px;
+      background: var(--surface);
+      border-right: 1px solid var(--line);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       flex-shrink: 0;
-      transition: transform 0.3s ease;
+      transition: transform .28s cubic-bezier(.2,.7,.2,1), background-color .25s cubic-bezier(.2,.7,.2,1);
       z-index: 500;
     }
 
     .form-section {
-      padding: 16px;
-      border-bottom: 1px solid #E8D8C0;
+      padding: 24px;
+      border-bottom: 1px solid var(--line);
     }
 
     .form-section h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 16px;
-      color: #1A1206;
-      margin-bottom: 4px;
+      font-family: inherit;
+      font-size: 22px;
+      color: var(--ink);
+      letter-spacing: -.04em;
+      margin-bottom: 6px;
     }
 
     .form-subtitle {
       font-size: 12px;
-      color: #8B6F47;
-      margin-bottom: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 18px;
     }
 
     .form-group { margin-bottom: 10px; }
 
     label {
       font-size: 11px;
-      font-weight: 500;
-      color: #8B6F47;
+      font-weight: 600;
+      color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       display: block;
@@ -172,103 +264,106 @@
     input, textarea {
       width: 100%;
       padding: 8px 10px;
-      background: #FFF8F0;
-      border: 1px solid #D4B896;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13px;
-      color: #1A1206;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--ink);
       outline: none;
       resize: none;
     }
 
-    input:focus, textarea:focus { border-color: #F5A623; }
+    input:focus, textarea:focus { border-color: var(--accent-strong); }
 
     .hint-text {
       font-size: 11px;
-      color: #8B6F47;
+      color: var(--muted);
       margin-top: 6px;
       font-style: italic;
     }
 
     .btn-add {
       width: 100%;
-      padding: 10px;
-      background: #F5A623;
-      color: #1A1206;
+      padding: 12px;
+      background: var(--ink);
+      color: var(--surface);
       border: none;
-      border-radius: 8px;
-      font-family: 'DM Sans', sans-serif;
+      border-radius: 9px;
+      font-family: inherit;
       font-weight: 500;
       font-size: 14px;
       cursor: pointer;
-      margin-top: 6px;
+      margin-top: 10px;
+      transition: transform .18s cubic-bezier(.2,.7,.2,1), background .18s cubic-bezier(.2,.7,.2,1), opacity .18s ease;
     }
 
-    .btn-add:hover { background: #e6971a; }
-    .btn-add:disabled { background: #D4B896; cursor: not-allowed; }
+    .btn-add:hover:not(:disabled) { background: #343438; transform: translateY(-1px); }
+    .btn-add:active:not(:disabled) { transform: scale(.99); }
+    .btn-add:disabled { background: #b9b9bc; color: #ffffff; cursor: not-allowed; }
+    body[data-theme="dark"] .btn-add:disabled { background: #50514d; }
 
     .search-wrap {
-      padding: 10px 12px;
-      border-bottom: 1px solid #E8D8C0;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--line);
     }
 
     .search-wrap input {
       width: 100%;
       padding: 7px 10px;
       border-radius: 8px;
-      border: 1px solid #D4B896;
+      border: 1px solid var(--line);
       font-size: 13px;
-      background: #FFF8F0;
-      color: #1A1206;
+      background: var(--surface-soft);
+      color: var(--ink);
       outline: none;
     }
 
     .sales-list {
       flex: 1;
       overflow-y: auto;
-      padding: 12px;
+      padding: 16px 24px 24px;
     }
 
     .list-header {
       font-size: 11px;
       font-weight: 500;
-      color: #8B6F47;
+      color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 10px;
     }
 
     .sale-card {
-      background: #FFF8F0;
-      border: 1px solid #E8D8C0;
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 8px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 10px;
       position: relative;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: border-color .18s cubic-bezier(.2,.7,.2,1), box-shadow .18s cubic-bezier(.2,.7,.2,1), transform .18s cubic-bezier(.2,.7,.2,1), background .18s ease;
     }
 
-    .sale-card:hover { border-color: #F5A623; }
+    .sale-card:hover { border-color: #b9b9bc; box-shadow: var(--shadow); transform: translateY(-1px); }
 
     .sale-card-title {
       font-weight: 500;
       font-size: 14px;
-      color: #1A1206;
+      color: var(--ink);
       margin-bottom: 3px;
       padding-right: 24px;
     }
 
     .sale-card-date {
       font-size: 12px;
-      color: #8B6F47;
+      color: var(--muted);
       margin-bottom: 2px;
     }
 
     .sale-card-user {
       font-size: 11px;
-      color: #B8956A;
+      color: var(--muted);
       margin-bottom: 4px;
       display: flex;
       align-items: center;
@@ -282,7 +377,7 @@
 
     .sale-card-desc {
       font-size: 12px;
-      color: #5C4A2A;
+      color: var(--muted);
       line-height: 1.5;
     }
 
@@ -290,10 +385,10 @@
       position: absolute;
       top: 8px; right: 8px;
       width: 22px; height: 22px;
-      background: #FFE8D6;
+      background: var(--accent-soft);
       border: none;
       border-radius: 50%;
-      color: #C0714A;
+      color: var(--accent-strong);
       font-size: 16px;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
@@ -302,7 +397,7 @@
     .no-sales {
       text-align: center;
       padding: 30px 0;
-      color: #8B6F47;
+      color: var(--muted);
       font-size: 13px;
     }
 
@@ -331,7 +426,7 @@
 
     .welcome-note {
       color: #8B6F47;
-      font-family: 'Playfair Display', serif;
+      font-family: inherit;
       font-size: 14px;
       white-space: nowrap;
       padding-right: 4px;
@@ -376,7 +471,7 @@
       border-radius: 5px;
       background: transparent;
       color: #FFF8F0;
-      font-family: 'DM Sans', sans-serif;
+      font-family: inherit;
       font-size: 13px;
       cursor: pointer;
       transition: background .18s ease, color .18s ease, border-color .18s ease;
@@ -438,14 +533,14 @@
     }
 
     .guide-cover::after {
-      content: "Y";
+      content: "";
       position: absolute;
-      right: -26px;
-      bottom: -99px;
-      color: rgba(255, 248, 240, .08);
-      font-family: 'Playfair Display', serif;
-      font-size: 300px;
-      line-height: 1;
+      right: -90px;
+      bottom: -112px;
+      width: 250px;
+      height: 250px;
+      border: 1px solid rgba(255, 248, 240, .12);
+      border-radius: 50%;
       pointer-events: none;
     }
 
@@ -462,7 +557,7 @@
       z-index: 1;
       max-width: 260px;
       margin: 48px 0 16px;
-      font-family: 'Playfair Display', serif;
+      font-family: inherit;
       font-size: clamp(34px, 5vw, 49px);
       font-weight: 700;
       line-height: 1.03;
@@ -535,7 +630,7 @@
 
     .guide-chapter-number {
       color: #B8791A;
-      font-family: 'Playfair Display', serif;
+      font-family: inherit;
       font-size: 24px;
       line-height: 1.1;
     }
@@ -543,7 +638,7 @@
     .guide-chapter h3 {
       margin: 0 0 5px;
       color: #30271D;
-      font-family: 'Playfair Display', serif;
+      font-family: inherit;
       font-size: 19px;
       font-weight: 700;
     }
@@ -567,6 +662,289 @@
 
     .guide-open {
       overflow: hidden;
+    }
+
+    header {
+      min-height: 64px;
+      padding: 10px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, .015);
+    }
+
+    .logo { gap: 8px; }
+    .logo-icon { width: 38px; height: 38px; }
+    .logo-icon svg { width: 38px; height: 38px; }
+    .header-right { gap: 8px; }
+    .guide-tab {
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 550;
+      transition: background .18s cubic-bezier(.2,.7,.2,1), border-color .18s cubic-bezier(.2,.7,.2,1), transform .18s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .guide-tab:hover, .guide-tab:focus-visible { background: var(--surface-soft); border-color: #c7c7c9; color: var(--ink); }
+    .guide-tab:active { transform: scale(.97); }
+
+    .btn-login:hover, .btn-login:focus-visible { background: #343438; }
+    .btn-login, .btn-logout, .menu-btn, .fab { transition: transform .18s cubic-bezier(.2,.7,.2,1), background .18s cubic-bezier(.2,.7,.2,1), border-color .18s cubic-bezier(.2,.7,.2,1); }
+    .btn-login:active, .menu-btn:active, .fab:active { transform: scale(.97); }
+    .user-pill { background: var(--surface); }
+    .user-name { color: var(--ink); }
+
+    .sidebar { overflow-x: hidden; overflow-y: auto; box-shadow: 2px 0 12px rgba(21, 21, 20, .025); }
+    .sidebar-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 24px 24px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .sidebar-eyebrow {
+      margin-bottom: 9px;
+      color: var(--accent-strong);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: .12em;
+    }
+
+    .sidebar-heading h1 {
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 25px;
+      font-weight: 650;
+      letter-spacing: -.055em;
+      line-height: 1.12;
+    }
+
+    .sidebar-deck {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .locate-button {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      transition: transform .18s cubic-bezier(.2,.7,.2,1), background .18s cubic-bezier(.2,.7,.2,1), border-color .18s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .locate-button svg { width: 19px; height: 19px; }
+    .locate-button:hover { background: var(--surface-soft); border-color: #c7c7c9; }
+    .locate-button:active { transform: scale(.96); }
+
+    .form-section { padding: 20px 24px 22px; }
+    .form-section h2 { font-size: 17px; letter-spacing: -.025em; }
+    .form-subtitle { margin-bottom: 15px; font-size: 13px; }
+    .form-group { margin-bottom: 13px; }
+    .form-group label { margin-bottom: 6px; font-size: 10px; }
+    .form-group input, .form-group textarea { padding: 10px 12px; }
+    .form-group textarea { min-height: 68px; }
+    .hint-text { min-height: 16px; font-style: normal; }
+
+    .search-wrap { padding: 14px 24px; }
+    .search-field {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      cursor: text;
+      transition: border-color .18s cubic-bezier(.2,.7,.2,1), background .18s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .search-field:focus-within { border-color: var(--accent-strong); background: var(--surface); }
+    .search-field svg { width: 17px; height: 17px; flex: 0 0 auto; }
+    .search-field input { min-width: 0; padding: 9px 0; border: 0; border-radius: 0; background: transparent; font-size: 13px; }
+    .search-field input:focus { border: 0; outline: 0; }
+    .search-shortcut, .command-search kbd {
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 10px;
+    }
+
+    .sales-list { min-height: 150px; padding: 16px 24px 24px; }
+    .list-header { margin-bottom: 12px; font-size: 10px; letter-spacing: .1em; }
+    .sale-card { animation: card-arrive .35s cubic-bezier(.2,.7,.2,1) both; }
+    .sale-card:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .sale-card-title { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
+    .sale-card-date { color: var(--accent-strong); font-weight: 550; }
+    .sale-card-desc { line-height: 1.55; }
+    .no-sales {
+      padding: 25px 16px;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .sale-skeleton { display: grid; gap: 10px; }
+    .sale-skeleton i {
+      display: block;
+      height: 88px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(90deg, var(--surface-soft) 20%, var(--page) 42%, var(--surface-soft) 64%);
+      background-size: 240% 100%;
+      animation: skeleton-shimmer 1.4s ease-in-out infinite;
+    }
+    .sale-skeleton i:nth-child(2) { height: 104px; animation-delay: .12s; }
+    .sale-skeleton i:nth-child(3) { height: 80px; animation-delay: .24s; }
+    @keyframes skeleton-shimmer { to { background-position: -120% 0; } }
+    @keyframes card-arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    .fab {
+      background: var(--ink);
+      color: var(--surface);
+      border: 0;
+      box-shadow: var(--shadow);
+    }
+
+    #map { background: var(--page); }
+    .leaflet-control-zoom a, .leaflet-control-attribution {
+      background: var(--map-control) !important;
+      color: var(--ink) !important;
+      border-color: var(--line) !important;
+    }
+    body[data-theme="dark"] .leaflet-tile { filter: brightness(.72) invert(1) contrast(.88) hue-rotate(180deg) saturate(.55); }
+    body[data-theme="dark"] .leaflet-container { background: #22231f; }
+
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    input:focus-visible, textarea:focus-visible { outline-offset: 1px; }
+    button, a, input, textarea { -webkit-tap-highlight-color: transparent; }
+    button { font-family: inherit; }
+    button:disabled { cursor: not-allowed; }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .command-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 4000;
+      display: grid;
+      align-items: start;
+      justify-items: center;
+      padding: min(18vh, 150px) 20px 20px;
+      background: rgba(20, 20, 19, .42);
+      backdrop-filter: blur(4px);
+    }
+    .command-backdrop[hidden] { display: none; }
+    .command-panel {
+      width: min(520px, 100%);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .2);
+      animation: palette-arrive .18s cubic-bezier(.2,.7,.2,1) both;
+    }
+    @keyframes palette-arrive { from { opacity: 0; transform: translateY(-8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .command-search { display: flex; align-items: center; gap: 11px; padding: 16px; border-bottom: 1px solid var(--line); }
+    .command-search svg { width: 19px; height: 19px; color: var(--muted); flex: 0 0 auto; }
+    .command-search input { min-width: 0; padding: 3px 0; border: 0; background: transparent; color: var(--ink); font-size: 16px; }
+    .command-search input:focus { border: 0; outline: 0; }
+    .command-label { padding: 16px 14px 7px; color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .12em; }
+    .command-list { padding: 2px 8px 10px; }
+    .command-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 11px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+      transition: background .14s cubic-bezier(.2,.7,.2,1), transform .14s cubic-bezier(.2,.7,.2,1);
+    }
+    .command-item:hover, .command-item:focus-visible, .command-item.is-active { background: var(--surface-soft); outline: 0; }
+    .command-item:active { transform: scale(.99); }
+    .command-item[hidden] { display: none; }
+    .command-item kbd { font-family: inherit; }
+    .command-footer { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+
+    .toast {
+      max-width: calc(100vw - 32px);
+      background: var(--ink);
+      color: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      box-shadow: var(--shadow);
+    }
+
+    body[data-theme="dark"] .guide-book {
+      background:
+        radial-gradient(ellipse at 18% 12%, rgba(228, 161, 92, .11), transparent 34%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, .012) 0, rgba(255, 255, 255, .012) 1px, transparent 1px, transparent 4px),
+        #242521;
+      border-color: var(--line);
+      color: var(--ink);
+    }
+    body[data-theme="dark"] .guide-content,
+    body[data-theme="dark"] .guide-chapter h3,
+    body[data-theme="dark"] .guide-close { color: var(--ink); }
+    body[data-theme="dark"] .guide-intro,
+    body[data-theme="dark"] .guide-chapter p { color: var(--muted); }
+    body[data-theme="dark"] .guide-footnote { background: var(--surface-soft); color: var(--ink); }
+    body[data-theme="dark"] .guide-topline .guide-eyebrow { color: var(--accent); }
+    body[data-theme="dark"] .guide-close { background: var(--surface); border-color: var(--line); }
+    body[data-theme="dark"] .leaflet-popup-content-wrapper,
+    body[data-theme="dark"] .leaflet-popup-tip { background: #292a27; color: #f4f3ef; }
+    body[data-theme="dark"] .leaflet-popup-content a { color: #f0b777; }
+
+    .btn-delete {
+      width: 32px;
+      height: 32px;
+      top: 10px;
+      right: 10px;
+      transition: transform .16s cubic-bezier(.2,.7,.2,1), background .16s cubic-bezier(.2,.7,.2,1);
+    }
+    .btn-delete:hover { background: #f4ded7; transform: scale(1.04); }
+    body[data-theme="dark"] .btn-delete:hover { background: #52312c; }
+    .leaflet-control-zoom a { min-width: 30px; min-height: 30px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -650,22 +1028,98 @@
       .guide-topline { margin-bottom: 12px; }
       .guide-chapter { padding: 13px 0; }
     }
+
+    @media (max-width: 768px) {
+      header { min-height: 58px; padding: 8px 12px; }
+      .logo { gap: 5px; }
+      .logo-icon, .logo-icon svg { width: 34px; height: 34px; }
+      .logo-text { font-size: 15px; }
+      .header-right { gap: 6px; }
+      #sale-count-badge { padding: 6px 8px; font-size: 10px; }
+      .command-open > span { display: none; }
+      .command-open { min-width: 36px; padding: 0 7px; }
+      .command-hint { padding: 2px 4px; }
+      .utility-button { min-width: 36px; height: 36px; }
+      #auth-area .user-name, #auth-area .user-avatar { display: none; }
+      .user-pill { gap: 4px; padding: 4px; }
+      .user-pill .btn-logout { font-size: 10px; }
+      .sidebar { width: min(348px, calc(100vw - 42px)); }
+      .sidebar-heading { padding: 20px 20px 16px; }
+      .form-section { padding: 18px 20px; }
+      .search-wrap { padding: 12px 20px; }
+      .sales-list { padding: 14px 20px 20px; }
+      .command-backdrop { padding: 10vh 12px 12px; }
+      .command-footer span:last-child { text-align: right; }
+    }
+
+    @media (max-width: 420px) {
+      #sale-count-badge { display: none; }
+    }
+
+    @media (max-width: 390px) {
+      .header-right { gap: 4px; }
+      .guide-tab { padding: 6px 8px; }
+      .command-hint { display: none; }
+      .btn-login { padding: 8px 9px; font-size: 11px; }
+    }
+
+    @media (max-width: 340px) {
+      .logo-text { display: none; }
+    }
+
+    @media (max-height: 520px) and (max-width: 768px) {
+      .guide-cover { min-height: 145px; }
+      .guide-cover h2 { margin-top: 14px; font-size: 28px; }
+      .guide-backdrop { place-items: start center; }
+    }
+
+    .toast {
+      background: var(--ink);
+      color: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      box-shadow: var(--shadow);
+      transition: transform .28s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .fab {
+      background: var(--ink);
+      color: var(--surface);
+      border: 0;
+      box-shadow: var(--shadow);
+    }
   </style>
 </head>
 <body>
 
 <header>
   <div class="logo">
-    <div class="logo-icon">Y</div>
+    <div class="logo-icon" aria-hidden="true">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 2.5C11.9 2.5 5.5 8.8 5.5 16.7c0 10.2 14.5 21 14.5 21s14.5-10.8 14.5-21C34.5 8.8 28.1 2.5 20 2.5Z" fill="#D8873C"/>
+        <path d="M20 10.2v18.2M11.8 19.3H28.2M14.2 13.5l11.6 11.6m0-11.6L14.2 25.1" stroke="#FFFDF8" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="20" cy="19.3" r="3.1" fill="#27372B" stroke="#FFFDF8" stroke-width="1.5"/>
+      </svg>
+    </div>
     <span class="logo-text">YardScout</span>
   </div>
   <div class="header-right">
     <span id="sale-count-badge">0 Sales</span>
+    <button class="utility-button command-open" id="command-open" type="button" aria-label="Open quick actions" title="Quick actions (Ctrl or Command + K)">
+      <span>Quick actions</span><kbd class="command-hint">⌘ K</kbd>
+    </button>
+    <button class="utility-button theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark appearance" title="Change appearance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+    </button>
     <button class="guide-tab" id="guide-open" type="button" aria-haspopup="dialog" aria-controls="guide-dialog">Guide</button>
     <div id="auth-area"></div>
     <button class="menu-btn" onclick="toggleSidebar()">☰</button>
   </div>
 </header>
+<div class="offline-banner" id="offline-banner" role="status" aria-live="polite">
+  <span class="offline-dot" aria-hidden="true"></span>
+  <span id="offline-message">You’re offline. Your draft is saved on this device; the map may be out of date.</span>
+</div>
 
 <div class="how-it-works" id="welcome-strip" role="region" aria-label="Quick start">
   <span class="welcome-note">New around here? The short version.</span>
@@ -689,10 +1143,20 @@
 </div>
 
 <div class="layout">
-  <div class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" aria-label="Sale listings and posting">
+    <div class="sidebar-heading">
+      <div>
+        <p class="sidebar-eyebrow">THE NEIGHBOURHOOD EDIT</p>
+        <h1>Find a good one.</h1>
+        <p class="sidebar-deck">A map of sales worth the Saturday stop.</p>
+      </div>
+      <button class="locate-button" id="locate-me" type="button" aria-label="Center the map on my location" title="Find my location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg>
+      </button>
+    </div>
     <div class="form-section">
-      <h2>Add a Garage Sale</h2>
-      <p class="form-subtitle">Click the map first to choose your location</p>
+      <h2>Post a sale</h2>
+      <p class="form-subtitle">Put the pin on the map, then add the day and the good stuff.</p>
       <div class="form-group">
         <label for="title">Sale Title</label>
         <input type="text" id="title" placeholder="e.g. Big Spring Cleanout">
@@ -710,22 +1174,45 @@
     </div>
 
     <div class="search-wrap">
-      <input type="text" id="search" placeholder="Search sales...">
+      <label class="search-field" for="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg>
+        <input type="search" id="search" placeholder="Search nearby sales" autocomplete="off">
+        <kbd class="search-shortcut">/</kbd>
+      </label>
     </div>
 
     <div class="sales-list">
       <div class="list-header" id="list-header">0 active listings</div>
       <div id="sales-container">
-        <div class="no-sales">No active sales in view.</div>
+        <div class="sale-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
       </div>
     </div>
-  </div>
+  </aside>
 
   <div id="map"></div>
 </div>
 
 <button class="fab" onclick="toggleSidebar()">+</button>
 <div class="toast" id="toast"></div>
+<div class="command-backdrop" id="command-backdrop" hidden>
+  <section class="command-panel" role="dialog" aria-modal="true" aria-labelledby="command-title">
+    <h2 id="command-title" class="visually-hidden">Quick actions</h2>
+    <label class="command-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.2 4.2"/></svg>
+      <input id="command-query" type="search" placeholder="What would you like to do?" autocomplete="off" aria-label="Filter quick actions">
+      <kbd>ESC</kbd>
+    </label>
+    <p class="command-label">ACTIONS</p>
+    <div class="command-list" id="command-list">
+      <button type="button" class="command-item" data-command="search"><span>Search sales</span><kbd>/</kbd></button>
+      <button type="button" class="command-item" data-command="post"><span>Post a sale</span><kbd>N</kbd></button>
+      <button type="button" class="command-item" data-command="locate"><span>Find my location</span><kbd>G</kbd></button>
+      <button type="button" class="command-item" data-command="guide"><span>Read the field guide</span><kbd>?</kbd></button>
+      <button type="button" class="command-item" data-command="theme"><span>Change appearance</span><kbd>◐</kbd></button>
+    </div>
+    <div class="command-footer"><span>YardScout</span><span>Move with ↑ ↓ · Select with ↵</span></div>
+  </section>
+</div>
 <div class="guide-backdrop" id="guide-backdrop" hidden>
   <section class="guide-book" id="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-title" aria-describedby="guide-intro">
     <aside class="guide-cover">
@@ -769,6 +1256,56 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 
+  // ── APPEARANCE ──
+  const themeToggle = document.getElementById('theme-toggle');
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+  function getSavedTheme() {
+    try { return localStorage.getItem('yardscout-theme'); }
+    catch { return null; }
+  }
+  function applyTheme(theme, persist = false) {
+    const resolvedTheme = theme === 'dark' || theme === 'light'
+      ? theme
+      : systemTheme.matches ? 'dark' : 'light';
+    document.body.dataset.theme = resolvedTheme;
+    themeToggle.innerHTML = resolvedTheme === 'dark'
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.2 15.1A8.7 8.7 0 0 1 8.9 3.8a8.8 8.8 0 1 0 11.3 11.3Z"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
+    themeToggle.setAttribute('aria-label', `Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} appearance`);
+    themeToggle.title = `Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} appearance`;
+    if (persist) {
+      try { localStorage.setItem('yardscout-theme', resolvedTheme); }
+      catch { showToast('Appearance changed for this visit; browser storage is unavailable.'); }
+    }
+  }
+  applyTheme(getSavedTheme());
+  systemTheme.addEventListener('change', event => {
+    if (!getSavedTheme()) applyTheme(event.matches ? 'dark' : 'light');
+  });
+  themeToggle.addEventListener('click', () => {
+    applyTheme(document.body.dataset.theme === 'dark' ? 'light' : 'dark', true);
+  });
+
+  // ── CONNECTION STATUS ──
+  const offlineBanner = document.getElementById('offline-banner');
+  const offlineMessage = document.getElementById('offline-message');
+  function setConnectionStatus(online) {
+    offlineBanner.classList.toggle('is-visible', !online);
+    offlineMessage.textContent = online
+      ? 'Connection restored. Refreshing nearby sales…'
+      : 'You’re offline. Your draft is saved on this device; the map may be out of date.';
+  }
+  if (!navigator.onLine) setConnectionStatus(false);
+  window.addEventListener('offline', () => {
+    setConnectionStatus(false);
+    showToast('You’re offline. Your draft is saved on this device.');
+  });
+  window.addEventListener('online', () => {
+    setConnectionStatus(true);
+    loadSales();
+    window.setTimeout(() => offlineBanner.classList.remove('is-visible'), 2800);
+  });
+
   // ── QUICK START AND GUIDE ──
   const welcomeStrip = document.getElementById('welcome-strip');
   let welcomeTimer = window.setTimeout(() => welcomeStrip.classList.add('is-hidden'), 12000);
@@ -781,9 +1318,11 @@
   const guideOpenButton = document.getElementById('guide-open');
   const guideCloseButton = document.getElementById('guide-close');
   let guideHideTimer = null;
+  let previousGuideFocus = null;
 
   function openGuide() {
     window.clearTimeout(guideHideTimer);
+    previousGuideFocus = document.activeElement;
     guideBackdrop.hidden = false;
     requestAnimationFrame(() => guideBackdrop.classList.add('is-open'));
     document.body.classList.add('guide-open');
@@ -795,7 +1334,8 @@
     guideBackdrop.classList.remove('is-open');
     document.body.classList.remove('guide-open');
     guideHideTimer = window.setTimeout(() => { guideBackdrop.hidden = true; }, 240);
-    guideOpenButton.focus({ preventScroll: true });
+    if (previousGuideFocus && previousGuideFocus.focus) previousGuideFocus.focus({ preventScroll: true });
+    else guideOpenButton.focus({ preventScroll: true });
   }
 
   guideOpenButton.addEventListener('click', openGuide);
@@ -803,6 +1343,117 @@
   guideBackdrop.addEventListener('click', event => {
     if (event.target === guideBackdrop) closeGuide();
   });
+
+  // ── QUICK ACTIONS ──
+  const commandBackdrop = document.getElementById('command-backdrop');
+  const commandOpenButton = document.getElementById('command-open');
+  const commandQuery = document.getElementById('command-query');
+  const commandItems = [...document.querySelectorAll('.command-item')];
+  let previousCommandFocus = null;
+
+  function openCommands() {
+    previousCommandFocus = document.activeElement;
+    commandBackdrop.hidden = false;
+    commandQuery.value = '';
+    filterCommands('');
+    requestAnimationFrame(() => commandQuery.focus());
+  }
+
+  function closeCommands(restoreFocus = true) {
+    commandBackdrop.hidden = true;
+    if (restoreFocus && previousCommandFocus && previousCommandFocus.focus) {
+      previousCommandFocus.focus({ preventScroll: true });
+    }
+  }
+
+  function filterCommands(query) {
+    const normalizedQuery = query.trim().toLowerCase();
+    for (const item of commandItems) {
+      item.hidden = !item.textContent.toLowerCase().includes(normalizedQuery);
+      item.classList.remove('is-active');
+    }
+    const firstVisible = commandItems.find(item => !item.hidden);
+    if (firstVisible) firstVisible.classList.add('is-active');
+  }
+
+  commandOpenButton.addEventListener('click', openCommands);
+  commandQuery.addEventListener('input', () => filterCommands(commandQuery.value));
+  commandBackdrop.addEventListener('click', event => {
+    if (event.target === commandBackdrop) closeCommands();
+  });
+  commandItems.forEach(item => item.addEventListener('click', () => {
+    const command = item.dataset.command;
+    closeCommands(false);
+    if (command === 'search') document.getElementById('search').focus();
+    if (command === 'post') {
+      if (window.innerWidth <= 768) document.getElementById('sidebar').classList.add('open');
+      document.getElementById('title').focus();
+    }
+    if (command === 'locate') document.getElementById('locate-me').click();
+    if (command === 'guide') {
+      guideOpenButton.focus({ preventScroll: true });
+      openGuide();
+    }
+    if (command === 'theme') themeToggle.click();
+  }));
+
+  document.addEventListener('keydown', event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      commandBackdrop.hidden ? openCommands() : closeCommands();
+      return;
+    }
+    if (!commandBackdrop.hidden) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCommands();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const visibleItems = commandItems.filter(item => !item.hidden);
+        const currentIndex = visibleItems.indexOf(document.activeElement);
+        const direction = event.key === 'ArrowDown' ? 1 : -1;
+        const nextIndex = currentIndex < 0
+          ? 0
+          : (currentIndex + direction + visibleItems.length) % visibleItems.length;
+        visibleItems[nextIndex]?.focus();
+      } else if (event.key === 'Enter') {
+        const activeItem = commandItems.find(item => item === document.activeElement)
+          || commandItems.find(item => item.classList.contains('is-active') && !item.hidden);
+        if (activeItem) activeItem.click();
+      } else if (event.key === 'Tab') {
+        const visibleItems = commandItems.filter(item => !item.hidden);
+        const focusables = [commandQuery, ...visibleItems];
+        const currentIndex = focusables.indexOf(document.activeElement);
+        const nextIndex = event.shiftKey
+          ? (currentIndex - 1 + focusables.length) % focusables.length
+          : (currentIndex + 1) % focusables.length;
+        event.preventDefault();
+        focusables[nextIndex].focus();
+      }
+      return;
+    }
+    const activeTag = document.activeElement?.tagName;
+    const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+    if (event.key === '/' && !isTyping) {
+      event.preventDefault();
+      document.getElementById('search').focus();
+    } else if (event.key.toLowerCase() === 'g' && !isTyping && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      document.getElementById('locate-me').click();
+    } else if (event.key === '?' && !isTyping) {
+      openGuide();
+    } else if (event.key.toLowerCase() === 'n' && !isTyping && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (window.innerWidth <= 768) document.getElementById('sidebar').classList.add('open');
+      document.getElementById('title').focus();
+    }
+  });
+
+  commandQuery.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      commandItems.find(item => !item.hidden)?.focus();
+    }
+  });
+
   document.addEventListener('keydown', event => {
     if (guideBackdrop.hidden) return;
     if (event.key === 'Escape') {
@@ -830,7 +1481,20 @@
   let pendingLatLng    = null;
   let pendingMarker    = null;
   let markers          = {};
+  let allSales         = [];
   let currentUserEmail = null;
+
+  document.getElementById('locate-me').addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      showToast('Location services are not available in this browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      position => map.setView([position.coords.latitude, position.coords.longitude], 14, { animate: true }),
+      () => showToast('Could not get your location. Check browser permissions and try again.'),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
+  });
 
   // ── MOBILE ──
   function toggleSidebar() {
@@ -863,7 +1527,7 @@
         transform:rotate(-45deg);
         display:flex; align-items:center; justify-content:center;
         box-shadow:2px 2px 8px rgba(0,0,0,0.3);
-      "><span style="transform:rotate(45deg);font-size:14px;">Y</span></div>`,
+      "><svg viewBox="0 0 16 16" width="15" height="15" style="transform:rotate(45deg)" aria-hidden="true"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2m0-9.2-9.2 9.2" fill="none" stroke="#27372B" stroke-width="1.35" stroke-linecap="round"/><circle cx="8" cy="8" r="1.8" fill="#27372B"/></svg></div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -36]
@@ -881,7 +1545,7 @@
         transform:rotate(-45deg);
         display:flex; align-items:center; justify-content:center;
         box-shadow:2px 2px 8px rgba(0,0,0,0.3);
-      "><span style="transform:rotate(45deg);font-size:14px;">Y</span></div>`,
+      "><svg viewBox="0 0 16 16" width="15" height="15" style="transform:rotate(45deg)" aria-hidden="true"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2m0-9.2-9.2 9.2" fill="none" stroke="#27372B" stroke-width="1.35" stroke-linecap="round"/><circle cx="8" cy="8" r="1.8" fill="#27372B"/></svg></div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 32],
       popupAnchor: [0, -36]
@@ -898,6 +1562,7 @@
     document.getElementById('map-hint').textContent =
       `Location set: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
     checkFormReady();
+    saveSaleDraft();
     if (window.innerWidth <= 768) {
       document.getElementById('sidebar').classList.add('open');
     }
@@ -907,17 +1572,32 @@
   function checkFormReady() {
     const title = document.getElementById('title').value.trim();
     const date  = document.getElementById('date').value;
-    document.getElementById('btn-add').disabled = !(title && date && pendingLatLng);
+    const selectedDate = date ? new Date(`${date}T00:00:00`) : null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    document.getElementById('btn-add').disabled = !(title && date && selectedDate >= today && pendingLatLng);
+    document.getElementById('date').setCustomValidity(date && selectedDate < today ? 'Choose today or a future date.' : '');
   }
+
+  const saleDateInput = document.getElementById('date');
+  const localToday = new Date();
+  saleDateInput.min = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, '0')}-${String(localToday.getDate()).padStart(2, '0')}`;
 
   document.getElementById('title').addEventListener('input', checkFormReady);
   document.getElementById('date').addEventListener('input', checkFormReady);
+  document.getElementById('title').addEventListener('input', saveSaleDraft);
+  document.getElementById('date').addEventListener('input', saveSaleDraft);
+  document.getElementById('description').addEventListener('input', saveSaleDraft);
 
   // ── ADD SALE ──
   document.getElementById('btn-add').addEventListener('click', async function() {
     if (!currentUserEmail) {
       showToast('Please sign in to add a sale!');
       setTimeout(() => window.location.href = '/login', 1500);
+      return;
+    }
+    if (!navigator.onLine) {
+      showToast('You’re offline. Your sale details are saved here; post them when you reconnect.');
       return;
     }
 
@@ -929,13 +1609,20 @@
       lng:         pendingLatLng.lng
     };
 
-    const response = await fetch('/api/sales', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(sale)
-    });
-
-    if (response.ok) {
+    const addButton = document.getElementById('btn-add');
+    addButton.disabled = true;
+    try {
+      const response = await fetch('/api/sales', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(sale)
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        showToast(result.error || 'Could not post the sale. Please try again.');
+        addButton.disabled = false;
+        return;
+      }
       if (pendingMarker) { map.removeLayer(pendingMarker); pendingMarker = null; }
       showToast('Garage sale pinned.');
       document.getElementById('title').value       = '';
@@ -944,10 +1631,14 @@
       document.getElementById('map-hint').textContent = 'Click the map to choose a location';
       pendingLatLng = null;
       document.getElementById('btn-add').disabled = true;
+      clearSaleDraft();
       if (window.innerWidth <= 768) {
         document.getElementById('sidebar').classList.remove('open');
       }
-      loadSales();
+      await loadSales();
+    } catch {
+      showToast('Could not reach YardScout. Your sale details are saved on this device.');
+      addButton.disabled = false;
     }
   });
 
@@ -963,12 +1654,39 @@
 
   // ── LOAD SALES ──
   async function loadSales() {
-    const response = await fetch('/api/sales');
-    const sales    = await response.json();
+    try {
+      const response = await fetch('/api/sales');
+      if (!response.ok) throw new Error(`Sales request failed with status ${response.status}.`);
+      const sales = await response.json();
+      if (!Array.isArray(sales)) throw new Error('Sales response was not a list.');
+      allSales = sales;
+      try { localStorage.setItem('yardscout-sales-cache', JSON.stringify(sales)); }
+      catch { /* The live listings still work when local caching is unavailable. */ }
+      renderSales(sales);
+    } catch (error) {
+      let cachedSales = [];
+      try {
+        const cached = JSON.parse(localStorage.getItem('yardscout-sales-cache') || '[]');
+        if (Array.isArray(cached)) cachedSales = cached;
+      } catch { /* Invalid or unavailable cache falls through to the empty state. */ }
+      allSales = cachedSales;
+      renderSales(cachedSales);
+      if (!navigator.onLine) setConnectionStatus(false);
+      if (!cachedSales.length) {
+        const container = document.getElementById('sales-container');
+        container.innerHTML = `<div class="no-sales">${navigator.onLine
+          ? 'Could not load sales. Check your connection and try again.'
+          : 'You’re offline, and there are no saved listings on this device yet.'}</div>`;
+      }
+      console.warn('Could not refresh sale listings:', error);
+    }
+  }
+
+  function renderSales(sales) {
     Object.values(markers).forEach(m => map.removeLayer(m));
     markers = {};
     sales.forEach(sale => addMarkerToMap(sale));
-    renderList(sales);
+    filterAndRenderSales();
   }
 
   // ── ADD MARKER ──
@@ -978,7 +1696,7 @@
       ? `<br><a href="${escAttr(sale.source_url)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;">View original listing (${escHtml(sale.source_name || 'source')})</a>`
       : '';
     marker.bindPopup(`
-      <strong style="font-family:'DM Sans',sans-serif;">${escHtml(sale.title)}</strong><br>
+      <strong>${escHtml(sale.title)}</strong><br>
       <span style="font-size:12px;color:#8B6F47;">${formatDate(sale.date)}</span><br>
       ${sale.user_picture
       ? `<img src="${escAttr(sale.user_picture)}" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px;">`
@@ -1002,12 +1720,12 @@
     badge.textContent  = `${sales.length} Sale${sales.length !== 1 ? 's' : ''}`;
 
     if (sales.length === 0) {
-      container.innerHTML = `<div class="no-sales">No garage sales yet.<br>Click the map to add one!</div>`;
+      container.innerHTML = `<div class="no-sales">No sales match that search yet.<br>Try another word or explore the map.</div>`;
       return;
     }
 
     container.innerHTML = sales.map(sale => `
-      <div class="sale-card" onclick="focusSale(${sale.id})">
+      <div class="sale-card" role="button" tabindex="0" aria-label="${escAttr(`${sale.title}, ${formatDate(sale.date)}. Select to view on map.`)}" onclick="focusSale(${sale.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();focusSale(${sale.id})}">
         ${sale.user_email === currentUserEmail ? `
           <button class="btn-delete" onclick="event.stopPropagation(); deleteSale(${sale.id})">×</button>
         ` : ''}
@@ -1038,15 +1756,66 @@
 
   // ── SEARCH ──
   document.getElementById('search').addEventListener('input', async function() {
-    const query    = this.value.toLowerCase();
-    const response = await fetch('/api/sales');
-    const sales    = await response.json();
-    const filtered = sales.filter(s =>
-      s.title.toLowerCase().includes(query) ||
-      (s.description && s.description.toLowerCase().includes(query))
-    );
-    renderList(filtered);
+    filterAndRenderSales(this.value);
   });
+
+  function filterAndRenderSales(query = document.getElementById('search').value) {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    renderList(allSales.filter(sale =>
+      String(sale.title || '').toLocaleLowerCase().includes(normalizedQuery)
+      || String(sale.description || '').toLocaleLowerCase().includes(normalizedQuery)
+    ));
+  }
+
+  // ── LOCAL DRAFT ──
+  let draftSaveTimer = null;
+  function saveSaleDraft() {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = window.setTimeout(() => {
+      const draft = {
+        title: document.getElementById('title').value,
+        date: document.getElementById('date').value,
+        description: document.getElementById('description').value,
+        latitude: pendingLatLng?.lat ?? null,
+        longitude: pendingLatLng?.lng ?? null,
+        savedAt: Date.now()
+      };
+      try { localStorage.setItem('yardscout-sale-draft', JSON.stringify(draft)); }
+      catch { /* Keep the form responsive when device storage is disabled. */ }
+    }, 180);
+  }
+
+  function clearSaleDraft() {
+    window.clearTimeout(draftSaveTimer);
+    try { localStorage.removeItem('yardscout-sale-draft'); }
+    catch { /* A posted sale should not fail because local storage is unavailable. */ }
+  }
+
+  function restoreSaleDraft() {
+    try {
+      const storedDraft = JSON.parse(localStorage.getItem('yardscout-sale-draft') || 'null');
+      if (!storedDraft || typeof storedDraft !== 'object' || Date.now() - storedDraft.savedAt > 30 * 24 * 60 * 60 * 1000) return;
+      document.getElementById('title').value = typeof storedDraft.title === 'string' ? storedDraft.title : '';
+      document.getElementById('date').value = typeof storedDraft.date === 'string' ? storedDraft.date : '';
+      document.getElementById('description').value = typeof storedDraft.description === 'string' ? storedDraft.description : '';
+      if (
+        Number.isFinite(storedDraft.latitude) && Number.isFinite(storedDraft.longitude)
+        && storedDraft.latitude >= -90 && storedDraft.latitude <= 90
+        && storedDraft.longitude >= -180 && storedDraft.longitude <= 180
+      ) {
+        pendingLatLng = L.latLng(storedDraft.latitude, storedDraft.longitude);
+        pendingMarker = L.marker(pendingLatLng, { icon: makeBouncingIcon() }).addTo(map);
+        document.getElementById('map-hint').textContent =
+          `Saved location: ${storedDraft.latitude.toFixed(4)}, ${storedDraft.longitude.toFixed(4)}`;
+      }
+      checkFormReady();
+      if (storedDraft.title || storedDraft.date || storedDraft.description || pendingLatLng) {
+        showToast('Your unfinished sale draft is back.');
+      }
+    } catch {
+      /* Ignore malformed or blocked local drafts without interrupting the map. */
+    }
+  }
 
   // ── AUTH ──
   async function loadUser() {
@@ -1092,6 +1861,7 @@
 
   // ── INIT ──
   window.addEventListener('load', () => {
+    restoreSaleDraft();
     loadUser();
     loadSales();
   });
