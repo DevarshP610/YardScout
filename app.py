@@ -5,6 +5,7 @@ import threading
 from collections.abc import Mapping
 from datetime import date
 from functools import wraps
+from urllib.parse import urlsplit
 
 import requests
 
@@ -329,6 +330,103 @@ def admin_location_suggestions():
         if len(suggestions) == 6:
             break
     return jsonify(suggestions)
+
+
+@app.route("/api/admin/manual-sales", methods=["POST"])
+@admin_required
+def create_manual_sale():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object."}), 400
+
+    title = data.get("title")
+    sale_date = data.get("date")
+    description = data.get("description", "")
+    source_url = data.get("source_url", "")
+    if not isinstance(title, str) or not title.strip() or len(title.strip()) > 250:
+        return jsonify({"error": "Enter a title up to 250 characters."}), 400
+    if not isinstance(sale_date, str):
+        return jsonify({"error": "Enter the sale date."}), 400
+    try:
+        sale_date = date.fromisoformat(sale_date).isoformat()
+    except ValueError:
+        return jsonify({"error": "Enter a valid sale date."}), 400
+    if sale_date < date.today().isoformat():
+        return jsonify({"error": "The sale date has passed; verify it before adding the listing."}), 400
+    if not isinstance(description, str) or len(description.strip()) > 2000:
+        return jsonify({"error": "Description must be 2,000 characters or fewer."}), 400
+    if not isinstance(source_url, str) or len(source_url.strip()) > 1000:
+        return jsonify({"error": "The source link must be 1,000 characters or fewer."}), 400
+    source_url = source_url.strip() or None
+    hostname = ""
+    if source_url:
+        try:
+            parsed_url = urlsplit(source_url)
+        except ValueError:
+            return jsonify({"error": "Enter a valid http or https source link."}), 400
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            return jsonify({"error": "Enter a valid http or https source link."}), 400
+        hostname = (parsed_url.hostname or "").casefold()
+
+    raw_latitude = data.get("latitude")
+    raw_longitude = data.get("longitude")
+    if raw_latitude is None or raw_longitude is None:
+        return jsonify({"error": "Choose the listing location from the suggestions."}), 400
+    try:
+        latitude = float(raw_latitude)
+        longitude = float(raw_longitude)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Choose the listing location from the suggestions."}), 400
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return jsonify({"error": "The selected location has invalid coordinates."}), 400
+
+    user = session.get("user") or {}
+    is_facebook_link = hostname == "facebook.com" or hostname.endswith(".facebook.com")
+    source_name = "Facebook (manual)" if is_facebook_link else "Admin-entered"
+    values = (
+        title.strip(),
+        sale_date,
+        description.strip(),
+        latitude,
+        longitude,
+        source_name,
+        source_url,
+        user.get("email"),
+        user.get("name", "YardScout Admin"),
+    )
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        if USE_SQLITE:
+            cur.execute(
+                """
+                INSERT INTO sales
+                    (title, date, description, lat, lng, source_name, source_url, user_email, user_name, user_picture)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+                """,
+                values,
+            )
+            sale_id = cur.lastrowid
+            cur.execute("SELECT * FROM sales WHERE id = ?", (sale_id,))
+        else:
+            cur.execute(
+                """
+                INSERT INTO sales
+                    (title, date, description, lat, lng, source_name, source_url, user_email, user_name, user_picture)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, '')
+                RETURNING *
+                """,
+                values,
+            )
+        sale = row_as_dict(cur.fetchone())
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+    return jsonify(sale), 201
 
 
 @app.route("/api/admin/scrapes", methods=["POST"])

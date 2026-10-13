@@ -23,6 +23,8 @@ Use the repository to explore how the pieces fit together:
 
 The location picker uses Photon with OpenStreetMap data to suggest US and Canadian cities and towns; it is not limited to a hardcoded list of 50 markets. That expands place selection, not listing-source coverage. The verified garage-sale source is eBrandon for Brandon, Manitoba. An optional `TICKETMASTER_API_KEY` enables exact-phrase searches through Ticketmaster's official event API, but Ticketmaster is not a general garage-sale feed and may return no relevant events. The app does not scrape Facebook, Kijiji, or Craigslist, and does not treat eBay item ads as sale events.
 
+Admins can also create a listing from a screenshot in the admin page. Text recognition runs in the admin's browser with Tesseract.js; the image is not uploaded to YardScout or sent to an OCR service. The OCR library and language data are loaded from a public CDN. Review the extracted title, date, details, and location before saving. Add the original listing link manually when available.
+
 ## Run and deploy
 
 This is a learning project, not a one-click distribution package. Running your own instance requires setting up your own database, OAuth client, admin account, and hosting, then configuring each service for your own domain. Do not reuse another operator's credentials or deployment configuration.

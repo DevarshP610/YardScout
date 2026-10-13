@@ -25,6 +25,16 @@
     #location-suggestions[hidden] { display: none; }
     .location-option { display: block; width: 100%; border-radius: 0; background: white; color: #1a1206; text-align: left; font-weight: 400; border-bottom: 1px solid #eee4d7; }
     .location-option:hover, .location-option:focus { background: #fff3e0; }
+    .manual-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .manual-form .full-width { grid-column: 1 / -1; }
+    .manual-form input, .manual-form textarea { width: 100%; }
+    .manual-form textarea { min-height: 110px; padding: 11px; border: 1px solid #d4b896; border-radius: 8px; font: inherit; resize: vertical; }
+    .upload-row { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+    .upload-row input { width: min(100%, 520px); }
+    .privacy-note, .ocr-status { color: #725b3b; font-size: 14px; }
+    #image-preview { display: block; max-width: min(100%, 420px); max-height: 300px; margin-top: 12px; border-radius: 8px; }
+    #image-preview[hidden] { display: none; }
+    #ocr-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: #725b3b; }
     #message, .muted { color: #725b3b; font-size: 14px; }
     .job, .sale { border-top: 1px solid #e8d8c0; padding: 12px 0; }
     .job:first-child, .sale:first-child { border-top: 0; }
@@ -33,7 +43,7 @@
     .sale { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
     .sale p { margin: 6px 0; }
     .delete { background: #ffe8d6; color: #9c3d28; white-space: nowrap; }
-    @media (max-width: 600px) { header { padding: 14px; } .sale { display: block; } .delete { margin-top: 8px; } }
+    @media (max-width: 600px) { header { padding: 14px; } .sale { display: block; } .delete { margin-top: 8px; } .manual-form { grid-template-columns: 1fr; } .manual-form .full-width { grid-column: auto; } }
   </style>
 </head>
 <body>
@@ -58,6 +68,50 @@
       <div id="jobs" aria-live="polite"></div>
     </section>
     <section class="panel">
+      <h2>Create a listing from a screenshot</h2>
+      <p class="muted">Choose a screenshot, extract the text, review the draft, and save it. OCR runs in this browser; the image is not uploaded to YardScout or sent to an OCR service.</p>
+      <div class="upload-row">
+        <div>
+          <label for="listing-image">Screenshot</label>
+          <input id="listing-image" type="file" accept="image/*">
+        </div>
+        <button id="extract-image" type="button">Extract listing details</button>
+      </div>
+      <p class="privacy-note">The OCR library and language data are downloaded from a public CDN. Review all extracted details against the original post before saving.</p>
+      <img id="image-preview" alt="Selected screenshot preview" hidden>
+      <p id="ocr-status" class="ocr-status" role="status"></p>
+      <details>
+        <summary>Show recognized text</summary>
+        <pre id="ocr-text"></pre>
+      </details>
+      <form id="manual-sale-form" class="manual-form">
+        <div class="full-width">
+          <label for="manual-title">Listing title</label>
+          <input id="manual-title" maxlength="250" required>
+        </div>
+        <div>
+          <label for="manual-date">Sale date</label>
+          <input id="manual-date" type="date" required>
+        </div>
+        <div>
+          <label for="manual-source-url">Original listing link (optional)</label>
+          <input id="manual-source-url" type="url" maxlength="1000" placeholder="https://www.facebook.com/...">
+        </div>
+        <div class="location-picker full-width">
+          <label for="manual-location">Sale city or town</label>
+          <input id="manual-location" maxlength="160" required placeholder="Select a suggested place" autocomplete="off" aria-autocomplete="list" aria-controls="manual-location-suggestions" aria-expanded="false">
+          <div id="manual-location-suggestions" role="listbox" hidden></div>
+        </div>
+        <div class="full-width">
+          <label for="manual-description">Details</label>
+          <textarea id="manual-description" maxlength="2000"></textarea>
+        </div>
+        <div class="full-width">
+          <button id="save-manual-sale" type="submit">Save listing</button>
+        </div>
+      </form>
+    </section>
+    <section class="panel">
       <h2>Listing moderation</h2>
       <p class="muted">Remove inaccurate scraped listings or user-submitted listings.</p>
       <div id="sales"><p class="muted">Loading listings…</p></div>
@@ -70,75 +124,78 @@
     const startButton = document.getElementById('start-scrape');
     const locationInput = document.getElementById('location');
     const suggestionsNode = document.getElementById('location-suggestions');
-    let selectedPlace = null;
-    let suggestionTimer = null;
-    let suggestionRequest = 0;
 
-    function hideSuggestions() {
-      suggestionsNode.hidden = true;
-      suggestionsNode.replaceChildren();
-      locationInput.setAttribute('aria-expanded', 'false');
-    }
-
-    function selectPlace(place) {
-      selectedPlace = place;
-      locationInput.value = place.label;
-      hideSuggestions();
-      message.textContent = `Selected ${place.label}.`;
-    }
-
-    locationInput.addEventListener('input', () => {
-      selectedPlace = null;
-      clearTimeout(suggestionTimer);
-      const query = locationInput.value.trim();
-      if (query.length < 2) {
-        hideSuggestions();
-        return;
+    function attachLocationPicker(input, node, onSelect = () => {}) {
+      let selectedPlace = null;
+      let timer = null;
+      let requestNumber = 0;
+      function hide() {
+        node.hidden = true;
+        node.replaceChildren();
+        input.setAttribute('aria-expanded', 'false');
       }
-
-      suggestionTimer = setTimeout(async () => {
-        const requestId = ++suggestionRequest;
-        suggestionsNode.hidden = false;
-        locationInput.setAttribute('aria-expanded', 'true');
-        suggestionsNode.textContent = 'Searching places…';
-        try {
-          const response = await fetch(`/api/admin/location-suggestions?q=${encodeURIComponent(query)}`);
-          const results = await response.json();
-          if (requestId !== suggestionRequest || query !== locationInput.value.trim()) return;
-          if (!response.ok) throw new Error(results.error || 'Could not search locations.');
-          suggestionsNode.replaceChildren();
-          if (!results.length) {
-            suggestionsNode.textContent = 'No matching US or Canadian cities found.';
-          }
-          for (const place of results) {
-            const option = document.createElement('button');
-            option.type = 'button';
-            option.className = 'location-option';
-            option.setAttribute('role', 'option');
-            option.textContent = place.label;
-            option.addEventListener('click', () => selectPlace(place));
-            suggestionsNode.append(option);
-          }
-        } catch (error) {
-          if (requestId === suggestionRequest) {
-            suggestionsNode.textContent = error.message;
-          }
+      input.addEventListener('input', () => {
+        selectedPlace = null;
+        clearTimeout(timer);
+        const query = input.value.trim();
+        if (query.length < 2) {
+          hide();
+          return;
         }
-      }, 350);
-    });
+        timer = setTimeout(async () => {
+          const currentRequest = ++requestNumber;
+          node.hidden = false;
+          input.setAttribute('aria-expanded', 'true');
+          node.textContent = 'Searching places…';
+          try {
+            const response = await fetch(`/api/admin/location-suggestions?q=${encodeURIComponent(query)}`);
+            const results = await response.json();
+            if (currentRequest !== requestNumber || query !== input.value.trim()) return;
+            if (!response.ok) throw new Error(results.error || 'Could not search locations.');
+            node.replaceChildren();
+            if (!results.length) node.textContent = 'No matching US or Canadian cities found.';
+            for (const place of results) {
+              const option = document.createElement('button');
+              option.type = 'button';
+              option.className = 'location-option';
+              option.setAttribute('role', 'option');
+              option.textContent = place.label;
+              option.addEventListener('click', () => {
+                selectedPlace = place;
+                input.value = place.label;
+                hide();
+                onSelect(place);
+              });
+              node.append(option);
+            }
+          } catch (error) {
+            if (currentRequest === requestNumber) node.textContent = error.message;
+          }
+        }, 350);
+      });
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Escape') hide();
+        if (event.key === 'Enter' && !selectedPlace && !node.hidden) {
+          event.preventDefault();
+          const firstOption = node.querySelector('button');
+          if (firstOption) firstOption.click();
+        }
+      });
+      document.addEventListener('click', event => {
+        if (!event.target.closest('.location-picker')) hide();
+      });
+      return () => selectedPlace && input.value === selectedPlace.label ? selectedPlace : null;
+    }
 
-    locationInput.addEventListener('keydown', event => {
-      if (event.key === 'Escape') hideSuggestions();
-      if (event.key === 'Enter' && !selectedPlace && !suggestionsNode.hidden) {
-        event.preventDefault();
-        const firstOption = suggestionsNode.querySelector('button');
-        if (firstOption) firstOption.click();
-      }
+    const getScrapePlace = attachLocationPicker(locationInput, suggestionsNode, place => {
+      message.textContent = `Selected ${place.label}.`;
     });
-
-    document.addEventListener('click', event => {
-      if (!event.target.closest('.location-picker')) hideSuggestions();
-    });
+    const manualLocationInput = document.getElementById('manual-location');
+    const getManualPlace = attachLocationPicker(
+      manualLocationInput,
+      document.getElementById('manual-location-suggestions'),
+      place => { ocrStatus.textContent = `Selected ${place.label}.`; }
+    );
 
     async function loadJobs() {
       const response = await fetch('/api/admin/scrapes');
@@ -211,11 +268,203 @@
       await loadSales();
     }
 
+    const imageInput = document.getElementById('listing-image');
+    const imagePreview = document.getElementById('image-preview');
+    const extractButton = document.getElementById('extract-image');
+    const ocrStatus = document.getElementById('ocr-status');
+    const ocrTextNode = document.getElementById('ocr-text');
+    let previewUrl = null;
+    let ocrLibraryPromise = null;
+
+    imageInput.addEventListener('change', () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      const file = imageInput.files[0];
+      imagePreview.hidden = !file;
+      if (file) {
+        previewUrl = URL.createObjectURL(file);
+        imagePreview.src = previewUrl;
+      } else {
+        previewUrl = null;
+        imagePreview.removeAttribute('src');
+      }
+      ocrStatus.textContent = '';
+      ocrTextNode.textContent = '';
+      document.getElementById('manual-title').value = '';
+      document.getElementById('manual-date').value = '';
+      document.getElementById('manual-description').value = '';
+      document.getElementById('manual-source-url').value = '';
+      manualLocationInput.value = '';
+      manualLocationInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    function loadOcrLibrary() {
+      if (window.Tesseract) return Promise.resolve();
+      if (!ocrLibraryPromise) {
+        ocrLibraryPromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+          script.onload = resolve;
+          script.onerror = () => {
+            ocrLibraryPromise = null;
+            reject(new Error('Could not load the browser OCR library.'));
+          };
+          document.head.append(script);
+        });
+      }
+      return ocrLibraryPromise;
+    }
+
+    function extractSaleDate(text) {
+      const match = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b/i);
+      if (!match) return '';
+      const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+      const month = monthNames.indexOf(match[1].toLowerCase());
+      const year = Number(match[3] || new Date().getFullYear());
+      const day = Number(match[2]);
+      const candidate = new Date(year, month, day);
+      if (candidate.getFullYear() !== year || candidate.getMonth() !== month || candidate.getDate() !== day) return '';
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (candidate < today) return '';
+      return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    function fillSaleDraft(text) {
+      const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const firstLine = (lines[0] || '').replace(/^[\["'`]+/, '').trim();
+      const titleLines = [firstLine];
+      if (lines[1] && /^\(/.test(lines[1])) titleLines.push(lines[1]);
+      document.getElementById('manual-title').value = titleLines.join(' ').slice(0, 250);
+      const detailsIndex = lines.findIndex(line => /^details$/i.test(line));
+      const stopDetails = /^(?:seller information|seller reviews|related searches|message|save|share|joined facebook)/i;
+      const detailsTail = lines.slice(detailsIndex + 1);
+      const detailsEnd = detailsTail.findIndex(line => stopDetails.test(line) || /location is approximate/i.test(line));
+      const detailsLines = detailsIndex >= 0
+        ? detailsTail.slice(0, detailsEnd < 0 ? undefined : detailsEnd)
+        : [];
+      const cleanDetails = detailsLines.filter(line =>
+        !/^condition\b/i.test(line)
+        && !/^(?:used(?:\s*-\s*good)?|new|brand|brandon|aerander|os)$/i.test(line)
+        && !/^[/\\|]/.test(line)
+        && (line.split(/\s+/).length > 1 || /[.!?]/.test(line))
+        && (line.match(/[A-Za-z0-9]/g) || []).length / line.replace(/\s/g, '').length >= 0.55
+      );
+      document.getElementById('manual-description').value = (cleanDetails.length ? cleanDetails : titleLines.slice(1)).join('\n').slice(0, 2000);
+      const saleDate = extractSaleDate([...titleLines, ...cleanDetails].join(' '));
+      document.getElementById('manual-date').value = saleDate;
+
+      const locationMatch = text.match(/\bin\s+([A-Za-z .'-]+,\s*(?:MB|SK|AB|BC|ON|QC|NB|NS|PE|NL|YT|NT|NU|[A-Z]{2}))\b/i);
+      if (locationMatch) {
+        manualLocationInput.value = locationMatch[1].trim();
+        manualLocationInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      return saleDate;
+    }
+
+    extractButton.addEventListener('click', async () => {
+      const file = imageInput.files[0];
+      if (!file) {
+        ocrStatus.textContent = 'Choose an image first.';
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        ocrStatus.textContent = 'Choose an image file.';
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        ocrStatus.textContent = 'Choose an image smaller than 15 MB.';
+        return;
+      }
+      extractButton.disabled = true;
+      ocrStatus.textContent = 'Loading browser OCR…';
+      try {
+        await loadOcrLibrary();
+        const bitmap = await createImageBitmap(file);
+        let ocrImage = file;
+        if (bitmap.width / bitmap.height > 1.35) {
+          const crop = document.createElement('canvas');
+          crop.width = Math.round(bitmap.width * 0.42);
+          crop.height = bitmap.height;
+          crop.getContext('2d').drawImage(
+            bitmap,
+            bitmap.width - crop.width,
+            0,
+            crop.width,
+            bitmap.height,
+            0,
+            0,
+            crop.width,
+            crop.height
+          );
+          ocrImage = crop;
+        }
+        bitmap.close();
+        const result = await window.Tesseract.recognize(ocrImage, 'eng', {
+          logger: progress => {
+            if (progress.status === 'recognizing text' && progress.progress) {
+              ocrStatus.textContent = `Reading screenshot… ${Math.round(progress.progress * 100)}%`;
+            }
+          }
+        });
+        if (imageInput.files[0] !== file) {
+          ocrStatus.textContent = 'The selected image changed. Extract the new image again.';
+          return;
+        }
+        const text = result.data.text.trim();
+        ocrTextNode.textContent = text;
+        const saleDate = fillSaleDraft(text);
+        ocrStatus.textContent = text
+          ? `${saleDate ? 'Draft filled. Verify the sale date' : 'Draft filled. No upcoming sale date was confidently found; enter it manually'}. Select the suggested location before saving.`
+          : 'No text was recognized. Try a clearer screenshot or enter the details manually.';
+      } catch (error) {
+        ocrStatus.textContent = error.message || 'Could not read the screenshot.';
+      } finally {
+        extractButton.disabled = false;
+      }
+    });
+
+    document.getElementById('manual-sale-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const place = getManualPlace();
+      if (!place) {
+        ocrStatus.textContent = 'Choose the sale city or town from the location suggestions.';
+        manualLocationInput.focus();
+        return;
+      }
+      const saveButton = document.getElementById('save-manual-sale');
+      saveButton.disabled = true;
+      ocrStatus.textContent = 'Saving listing…';
+      try {
+        const response = await fetch('/api/admin/manual-sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: document.getElementById('manual-title').value,
+            date: document.getElementById('manual-date').value,
+            description: document.getElementById('manual-description').value,
+            source_url: document.getElementById('manual-source-url').value,
+            latitude: place.latitude,
+            longitude: place.longitude
+          })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not save listing.');
+        ocrStatus.textContent = `Saved “${result.title}” for ${result.date}.`;
+        document.getElementById('manual-sale-form').reset();
+        await loadSales();
+      } catch (error) {
+        ocrStatus.textContent = error.message || 'Could not save listing.';
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+
     document.getElementById('scrape-form').addEventListener('submit', async event => {
       event.preventDefault();
       startButton.disabled = true;
       message.textContent = 'Starting location search…';
       try {
+        const selectedPlace = getScrapePlace();
         const response = await fetch('/api/admin/scrapes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
