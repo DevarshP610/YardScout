@@ -387,8 +387,10 @@ def run_location_scrape(location, latitude=None, longitude=None, country_code=No
         source_results.append(f"Ticketmaster: unavailable ({exc})")
     source_results.extend((
         "Craigslist: not scanned; its terms prohibit unlicensed automated searching.",
-        "Kijiji: no verified public listing API/feed; not scanned.",
-        "Facebook: requires approved Meta access; not scanned.",
+        "Kijiji: not scanned; no verified public event feed, and search results include ordinary item ads.",
+        "Used.ca: not scanned; its robots.txt excludes search routes and no event feed is verified.",
+        "GarageSaleFinder: not scanned; its terms prohibit automated data collection.",
+        "Facebook: not scanned; Meta requires separate express written permission for automated collection.",
         "eBay: item ads are not garage-sale events; not imported as events.",
     ))
 
