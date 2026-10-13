@@ -12,7 +12,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_EMAIL
-        value: devarshp610@gmail.com
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: GOOGLE_CLIENT_ID
