@@ -309,17 +309,38 @@
     .how-it-works {
       background: #FFF3E0;
       border-bottom: 1px solid #E8D8C0;
-      padding: 8px 16px;
+      padding: 10px 18px;
       display: flex;
-      gap: 16px;
+      align-items: center;
+      gap: 18px;
       flex-shrink: 0;
       overflow-x: auto;
+      max-height: 72px;
+      opacity: 1;
+      transition: opacity 0.35s ease, max-height 0.35s ease, padding 0.35s ease;
+    }
+
+    .how-it-works.is-hidden {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      opacity: 0;
+      overflow: hidden;
+      border-bottom-width: 0;
+    }
+
+    .welcome-note {
+      color: #8B6F47;
+      font-family: 'Playfair Display', serif;
+      font-size: 14px;
+      white-space: nowrap;
+      padding-right: 4px;
     }
 
     .how-step {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
       white-space: nowrap;
       font-size: 12px;
       color: #5C4A2A;
@@ -334,6 +355,222 @@
       font-weight: 500;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
+    }
+
+    .welcome-dismiss {
+      margin-left: auto;
+      border: 0;
+      background: transparent;
+      color: #725B3B;
+      font: inherit;
+      font-size: 12px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .guide-tab {
+      padding: 7px 12px;
+      border: 1px solid rgba(255, 248, 240, .36);
+      border-radius: 5px;
+      background: transparent;
+      color: #FFF8F0;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .18s ease, color .18s ease, border-color .18s ease;
+    }
+
+    .guide-tab:hover, .guide-tab:focus-visible {
+      background: #F5A623;
+      border-color: #F5A623;
+      color: #1A1206;
+    }
+
+    .guide-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(26, 18, 6, .64);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .22s ease, visibility .22s ease;
+    }
+
+    .guide-backdrop[hidden] { display: none; }
+
+    .guide-backdrop.is-open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .guide-book {
+      position: relative;
+      width: min(920px, 100%);
+      max-height: min(760px, calc(100vh - 48px));
+      overflow: auto;
+      display: grid;
+      grid-template-columns: minmax(235px, .78fr) minmax(0, 1.45fr);
+      background:
+        radial-gradient(ellipse at 18% 12%, rgba(245, 166, 35, .13), transparent 34%),
+        repeating-linear-gradient(0deg, rgba(92, 74, 42, .018) 0, rgba(92, 74, 42, .018) 1px, transparent 1px, transparent 4px),
+        #FFFCF6;
+      border: 1px solid #D4B896;
+      border-radius: 8px;
+      box-shadow: 0 24px 90px rgba(0, 0, 0, .28);
+      transform: translateY(12px);
+      transition: transform .22s ease;
+    }
+
+    .guide-backdrop.is-open .guide-book { transform: translateY(0); }
+
+    .guide-cover {
+      position: relative;
+      min-height: 100%;
+      padding: 38px 30px;
+      overflow: hidden;
+      background: #27372B;
+      color: #FFF8F0;
+    }
+
+    .guide-cover::after {
+      content: "Y";
+      position: absolute;
+      right: -26px;
+      bottom: -99px;
+      color: rgba(255, 248, 240, .08);
+      font-family: 'Playfair Display', serif;
+      font-size: 300px;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .guide-kicker, .guide-eyebrow {
+      color: #D8A64A;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+    }
+
+    .guide-cover h2 {
+      position: relative;
+      z-index: 1;
+      max-width: 260px;
+      margin: 48px 0 16px;
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(34px, 5vw, 49px);
+      font-weight: 700;
+      line-height: 1.03;
+      letter-spacing: -.035em;
+    }
+
+    .guide-cover p {
+      position: relative;
+      z-index: 1;
+      max-width: 245px;
+      color: #E9E0D0;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .guide-imprint {
+      position: absolute;
+      z-index: 1;
+      left: 30px;
+      bottom: 28px;
+      color: #E9E0D0;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .guide-content {
+      padding: 34px clamp(22px, 4vw, 48px) 38px;
+      color: #30271D;
+    }
+
+    .guide-topline {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 25px;
+    }
+
+    .guide-topline .guide-eyebrow { color: #8B6F47; }
+
+    .guide-close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid #D9CBB6;
+      border-radius: 50%;
+      background: transparent;
+      color: #30271D;
+      font-size: 19px;
+      cursor: pointer;
+      transition: background .18s ease;
+    }
+
+    .guide-close:hover { background: #F2E8D8; }
+
+    .guide-intro {
+      margin: 0 0 22px;
+      color: #6B5B49;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .guide-chapter {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 14px;
+      padding: 17px 0;
+      border-top: 1px solid #E7DCCB;
+    }
+
+    .guide-chapter-number {
+      color: #B8791A;
+      font-family: 'Playfair Display', serif;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .guide-chapter h3 {
+      margin: 0 0 5px;
+      color: #30271D;
+      font-family: 'Playfair Display', serif;
+      font-size: 19px;
+      font-weight: 700;
+    }
+
+    .guide-chapter p {
+      margin: 0;
+      color: #6B5B49;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .guide-footnote {
+      margin-top: 8px;
+      padding: 14px 16px;
+      border-left: 3px solid #D39A3E;
+      background: #F5EEDF;
+      color: #5C4A2A;
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .guide-open {
+      overflow: hidden;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .how-it-works, .guide-backdrop, .guide-book, .guide-tab, .guide-close { transition: none; }
     }
 
     .toast {
@@ -396,8 +633,22 @@
       }
       .sidebar.open { transform: translateX(0); }
       .fab { display: flex; }
-      .how-it-works { display: none; }
+      .how-it-works { max-height: 120px; flex-wrap: wrap; gap: 8px 14px; padding: 9px 12px; }
+      .how-it-works.is-hidden { max-height: 0; padding-top: 0; padding-bottom: 0; }
+      .welcome-note { width: calc(100% - 64px); font-size: 13px; }
+      .how-step { font-size: 10px; }
+      .welcome-dismiss { font-size: 11px; }
       .logo-text { font-size: 16px; }
+      .guide-tab { padding: 6px 9px; font-size: 12px; }
+      .guide-backdrop { padding: 12px; }
+      .guide-book { display: block; max-height: calc(100vh - 24px); }
+      .guide-cover { min-height: 195px; padding: 24px; }
+      .guide-cover h2 { max-width: 245px; margin: 27px 0 9px; font-size: 34px; }
+      .guide-cover p { max-width: 250px; font-size: 12px; }
+      .guide-imprint { left: auto; right: 22px; bottom: 22px; }
+      .guide-content { padding: 22px 24px 26px; }
+      .guide-topline { margin-bottom: 12px; }
+      .guide-chapter { padding: 13px 0; }
     }
   </style>
 </head>
@@ -410,28 +661,31 @@
   </div>
   <div class="header-right">
     <span id="sale-count-badge">0 Sales</span>
+    <button class="guide-tab" id="guide-open" type="button" aria-haspopup="dialog" aria-controls="guide-dialog">Guide</button>
     <div id="auth-area"></div>
     <button class="menu-btn" onclick="toggleSidebar()">☰</button>
   </div>
 </header>
 
-<div class="how-it-works">
+<div class="how-it-works" id="welcome-strip" role="region" aria-label="Quick start">
+  <span class="welcome-note">New around here? The short version.</span>
   <div class="how-step">
     <div class="how-step-num">1</div>
-    <span>Click anywhere on the map to drop a pin</span>
+    <span>Find a spot on the map</span>
   </div>
   <div class="how-step">
     <div class="how-step-num">2</div>
-    <span>Fill in your sale details on the left</span>
+    <span>Add the sale date and details</span>
   </div>
   <div class="how-step">
     <div class="how-step-num">3</div>
-    <span>Hit "Pin to Map" — anyone can find your sale!</span>
+    <span>Sign in, then pin it</span>
   </div>
   <div class="how-step">
     <div class="how-step-num">4</div>
-    <span>Click any pin on the map to see details</span>
+    <span>Choose a listing to see more</span>
   </div>
+  <button class="welcome-dismiss" id="welcome-dismiss" type="button" aria-label="Dismiss quick start instructions">Got it</button>
 </div>
 
 <div class="layout">
@@ -462,7 +716,7 @@
     <div class="sales-list">
       <div class="list-header" id="list-header">0 active listings</div>
       <div id="sales-container">
-        <div class="no-sales">No garage sales yet.<br>Click the map to add one!</div>
+        <div class="no-sales">No active sales in view.</div>
       </div>
     </div>
   </div>
@@ -472,9 +726,92 @@
 
 <button class="fab" onclick="toggleSidebar()">+</button>
 <div class="toast" id="toast"></div>
+<div class="guide-backdrop" id="guide-backdrop" hidden>
+  <section class="guide-book" id="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-title" aria-describedby="guide-intro">
+    <aside class="guide-cover">
+      <span class="guide-kicker">YardScout field notes · No. 01</span>
+      <h2 id="guide-title">A good find starts nearby.</h2>
+      <p>A few simple steps to find a sale, or put yours on the map.</p>
+      <span class="guide-imprint">Made for the weekend wanderer</span>
+    </aside>
+    <div class="guide-content">
+      <div class="guide-topline">
+        <span class="guide-eyebrow">The pocket guide</span>
+        <button class="guide-close" id="guide-close" type="button" aria-label="Close guide">×</button>
+      </div>
+      <p class="guide-intro" id="guide-intro">YardScout is a community map of upcoming garage sales. Browse first; sign in only when you’re ready to add a listing.</p>
+      <article class="guide-chapter">
+        <span class="guide-chapter-number">01</span>
+        <div>
+          <h3>Take a look around</h3>
+          <p>Pan and zoom the map to explore. Select a pin to read its date and details. Use the search box in the side panel to filter the listing list by words in a title or description.</p>
+        </div>
+      </article>
+      <article class="guide-chapter">
+        <span class="guide-chapter-number">02</span>
+        <div>
+          <h3>Put your sale on the map</h3>
+          <p>Choose the sale date, add a useful title and a few details, then click the sale’s spot on the map. Sign in and choose “Pin to Map” to publish it for other treasure hunters.</p>
+        </div>
+      </article>
+      <article class="guide-chapter">
+        <span class="guide-chapter-number">03</span>
+        <div>
+          <h3>Keep it useful</h3>
+          <p>Use the sale’s approximate public location rather than someone’s private details. Listings are for upcoming sales and disappear after their date.</p>
+        </div>
+      </article>
+      <div class="guide-footnote">Listings are community-submitted. YardScout does not automatically search Facebook Marketplace or every classifieds site, so a quiet map may simply mean no one has posted a sale nearby yet.</div>
+    </div>
+  </section>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+
+  // ── QUICK START AND GUIDE ──
+  const welcomeStrip = document.getElementById('welcome-strip');
+  let welcomeTimer = window.setTimeout(() => welcomeStrip.classList.add('is-hidden'), 12000);
+  document.getElementById('welcome-dismiss').addEventListener('click', () => {
+    window.clearTimeout(welcomeTimer);
+    welcomeStrip.classList.add('is-hidden');
+  });
+
+  const guideBackdrop = document.getElementById('guide-backdrop');
+  const guideOpenButton = document.getElementById('guide-open');
+  const guideCloseButton = document.getElementById('guide-close');
+  let guideHideTimer = null;
+
+  function openGuide() {
+    window.clearTimeout(guideHideTimer);
+    guideBackdrop.hidden = false;
+    requestAnimationFrame(() => guideBackdrop.classList.add('is-open'));
+    document.body.classList.add('guide-open');
+    guideCloseButton.focus({ preventScroll: true });
+  }
+
+  function closeGuide() {
+    if (guideBackdrop.hidden) return;
+    guideBackdrop.classList.remove('is-open');
+    document.body.classList.remove('guide-open');
+    guideHideTimer = window.setTimeout(() => { guideBackdrop.hidden = true; }, 240);
+    guideOpenButton.focus({ preventScroll: true });
+  }
+
+  guideOpenButton.addEventListener('click', openGuide);
+  guideCloseButton.addEventListener('click', closeGuide);
+  guideBackdrop.addEventListener('click', event => {
+    if (event.target === guideBackdrop) closeGuide();
+  });
+  document.addEventListener('keydown', event => {
+    if (guideBackdrop.hidden) return;
+    if (event.key === 'Escape') {
+      closeGuide();
+    } else if (event.key === 'Tab') {
+      event.preventDefault();
+      guideCloseButton.focus();
+    }
+  });
 
   // ── MAP SETUP ──
   const map = L.map('map').setView([43.65, -79.38], 13);
