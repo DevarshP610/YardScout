@@ -75,9 +75,21 @@ def init_db():
                 result_count INTEGER NOT NULL DEFAULT 0,
                 message TEXT,
                 started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                finished_at TEXT
+                finished_at TEXT,
+                job_type TEXT NOT NULL DEFAULT 'location',
+                progress INTEGER NOT NULL DEFAULT 0,
+                total_steps INTEGER NOT NULL DEFAULT 1
             )
         """)
+        cur.execute("PRAGMA table_info(scrape_jobs)")
+        job_columns = {row[1] for row in cur.fetchall()}
+        for column, definition in (
+            ("job_type", "TEXT NOT NULL DEFAULT 'location'"),
+            ("progress", "INTEGER NOT NULL DEFAULT 0"),
+            ("total_steps", "INTEGER NOT NULL DEFAULT 1"),
+        ):
+            if column not in job_columns:
+                cur.execute(f"ALTER TABLE scrape_jobs ADD COLUMN {column} {definition}")
         cur.execute("PRAGMA table_info(sales)")
         columns = {row[1] for row in cur.fetchall()}
         if "source_name" not in columns:
@@ -111,11 +123,17 @@ def init_db():
                 result_count INTEGER NOT NULL DEFAULT 0,
                 message TEXT,
                 started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                finished_at TIMESTAMP
+                finished_at TIMESTAMP,
+                job_type TEXT NOT NULL DEFAULT 'location',
+                progress INTEGER NOT NULL DEFAULT 0,
+                total_steps INTEGER NOT NULL DEFAULT 1
             )
         """)
         cur.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS source_name TEXT")
         cur.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS source_url TEXT")
+        cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'location'")
+        cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS total_steps INTEGER NOT NULL DEFAULT 1")
         cur.execute(
             "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
         )
@@ -147,7 +165,7 @@ def admin_required(view):
     return wrapped
 
 
-def update_scrape_job(job_id, status, result_count=0, message=None):
+def update_scrape_job(job_id, status, result_count=0, message=None, progress=None, total_steps=None):
     conn = get_db()
     cur = conn.cursor()
     if USE_SQLITE:
@@ -155,20 +173,22 @@ def update_scrape_job(job_id, status, result_count=0, message=None):
             """
             UPDATE scrape_jobs
             SET status = ?, result_count = ?, message = ?,
+                progress = COALESCE(?, progress), total_steps = COALESCE(?, total_steps),
                 finished_at = CASE WHEN ? = 'running' THEN NULL ELSE CURRENT_TIMESTAMP END
             WHERE id = ?
             """,
-            (status, result_count, message, status, job_id)
+            (status, result_count, message, progress, total_steps, status, job_id)
         )
     else:
         cur.execute(
             """
             UPDATE scrape_jobs
             SET status = %s, result_count = %s, message = %s,
+                progress = COALESCE(%s, progress), total_steps = COALESCE(%s, total_steps),
                 finished_at = CASE WHEN %s = 'running' THEN NULL ELSE CURRENT_TIMESTAMP END
             WHERE id = %s
             """,
-            (status, result_count, message, status, job_id)
+            (status, result_count, message, progress, total_steps, status, job_id)
         )
     conn.commit()
     cur.close()
@@ -184,12 +204,51 @@ def execute_scrape_job(job_id, location, latitude, longitude, country_code):
             longitude=longitude,
             country_code=country_code,
         )
-        update_scrape_job(job_id, "completed", count, message)
+        update_scrape_job(job_id, "completed", count, message, progress=1, total_steps=1)
     except Exception as exc:
         print(f"Scrape job {job_id} failed: {exc}", file=sys.stderr)
-        update_scrape_job(job_id, "failed", 0, str(exc)[:500])
+        update_scrape_job(job_id, "failed", 0, str(exc)[:500], progress=1, total_steps=1)
     finally:
         scrape_lock.release()
+
+
+def execute_north_america_scan(job_id, start_index=0, initial_count=0):
+    result_count = initial_count
+    last_saved_count = initial_count
+    try:
+        from scraper import NORTH_AMERICA_SCAN_TARGETS, run_north_america_scan
+
+        def save_progress(progress, total_steps, result_count, current_location):
+            nonlocal last_saved_count
+            last_saved_count = result_count
+            update_scrape_job(
+                job_id,
+                "running",
+                result_count,
+                f"Scanned {progress} of {total_steps} regional hubs; current: {current_location}.",
+                progress=progress,
+                total_steps=total_steps,
+            )
+
+        result_count = run_north_america_scan(
+            save_progress,
+            start_index=start_index,
+            initial_count=initial_count,
+        )
+        update_scrape_job(
+            job_id,
+            "completed",
+            result_count,
+            "Scanned approved sources for regional hubs in all 50 U.S. states and the District of Columbia, plus all 10 provinces and 3 territories. This does not cover every town or third-party site.",
+            progress=len(NORTH_AMERICA_SCAN_TARGETS),
+            total_steps=len(NORTH_AMERICA_SCAN_TARGETS),
+        )
+    except Exception as exc:
+        print(f"North America scrape job {job_id} failed: {exc}", file=sys.stderr)
+        update_scrape_job(job_id, "failed", last_saved_count, str(exc)[:500])
+    finally:
+        scrape_lock.release()
+
 
 @app.route("/")
 def home():
@@ -435,6 +494,66 @@ def start_scrape():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Request body must be a JSON object."}), 400
+    scope = data.get("scope", "location")
+    if scope == "north_america":
+        from scraper import NORTH_AMERICA_SCAN_TARGETS
+
+        if not scrape_lock.acquire(blocking=False):
+            return jsonify({"error": "A scrape is already running. Check its status before starting another."}), 409
+        conn = get_db()
+        cur = conn.cursor()
+        total_steps = len(NORTH_AMERICA_SCAN_TARGETS)
+        try:
+            if USE_SQLITE:
+                cur.execute(
+                    """
+                    INSERT INTO scrape_jobs (location, status, job_type, progress, total_steps)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    ("North America regional sweep", "running", "north_america", 0, total_steps),
+                )
+                job_id = cur.lastrowid
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO scrape_jobs (location, status, job_type, progress, total_steps)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING id
+                    """,
+                    ("North America regional sweep", "running", "north_america", 0, total_steps),
+                )
+                job_id = int(row_as_dict(cur.fetchone())["id"])
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            scrape_lock.release()
+            raise
+        finally:
+            cur.close()
+            conn.close()
+
+        worker = threading.Thread(
+            target=execute_north_america_scan,
+            args=(job_id,),
+            daemon=True,
+            name=f"north-america-scrape-{job_id}",
+        )
+        try:
+            worker.start()
+        except Exception as exc:
+            try:
+                update_scrape_job(job_id, "failed", 0, f"Could not start the background scan: {exc}"[:500])
+            finally:
+                scrape_lock.release()
+            raise
+        return jsonify({
+            "id": job_id,
+            "location": "North America regional sweep",
+            "status": "running",
+            "job_type": "north_america",
+            "total_steps": total_steps,
+        }), 202
+    if scope != "location":
+        return jsonify({"error": "Choose a supported scrape scope."}), 400
     location = data.get("location")
     if not isinstance(location, str):
         return jsonify({"error": "Location must be text."}), 400
@@ -463,14 +582,20 @@ def start_scrape():
     try:
         if USE_SQLITE:
             cur.execute(
-                "INSERT INTO scrape_jobs (location, status) VALUES (?, ?)",
-                (location, "running")
+                """
+                INSERT INTO scrape_jobs (location, status, job_type, progress, total_steps)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (location, "running", "location", 0, 1)
             )
             job_id = cur.lastrowid
         else:
             cur.execute(
-                "INSERT INTO scrape_jobs (location, status) VALUES (%s, %s) RETURNING id",
-                (location, "running")
+                """
+                INSERT INTO scrape_jobs (location, status, job_type, progress, total_steps)
+                VALUES (%s, %s, %s, %s, %s) RETURNING id
+                """,
+                (location, "running", "location", 0, 1)
             )
             job_id = int(row_as_dict(cur.fetchone())["id"])
         conn.commit()
@@ -482,13 +607,81 @@ def start_scrape():
         cur.close()
         conn.close()
 
-    threading.Thread(
+    worker = threading.Thread(
         target=execute_scrape_job,
         args=(job_id, location, latitude, longitude, country_code),
         daemon=True,
         name=f"scrape-job-{job_id}"
-    ).start()
+    )
+    try:
+        worker.start()
+    except Exception as exc:
+        try:
+            update_scrape_job(job_id, "failed", 0, f"Could not start the background scan: {exc}"[:500])
+        finally:
+            scrape_lock.release()
+        raise
     return jsonify({"id": job_id, "location": location, "status": "running"}), 202
+
+
+@app.route("/api/admin/scrapes/<int:job_id>/resume", methods=["POST"])
+@admin_required
+def resume_north_america_scrape(job_id):
+    from scraper import NORTH_AMERICA_SCAN_TARGETS
+
+    conn = get_db()
+    cur = conn.cursor()
+    if USE_SQLITE:
+        cur.execute(
+            "SELECT * FROM scrape_jobs WHERE id = ?",
+            (job_id,),
+        )
+    else:
+        cur.execute(
+            "SELECT * FROM scrape_jobs WHERE id = %s",
+            (job_id,),
+        )
+    job = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not job:
+        return jsonify({"error": "Scrape job not found."}), 404
+
+    job = row_as_dict(job)
+    if job["job_type"] != "north_america" or job["status"] not in {"interrupted", "failed"}:
+        return jsonify({"error": "Only interrupted or failed North America sweeps can be resumed."}), 409
+    if not scrape_lock.acquire(blocking=False):
+        return jsonify({"error": "A scrape is already running. Check its status before resuming another."}), 409
+
+    start_index = min(max(int(job["progress"]), 0), len(NORTH_AMERICA_SCAN_TARGETS))
+    initial_count = int(job["result_count"])
+    worker = threading.Thread(
+        target=execute_north_america_scan,
+        args=(job_id, start_index, initial_count),
+        daemon=True,
+        name=f"north-america-scrape-{job_id}",
+    )
+    try:
+        update_scrape_job(
+            job_id,
+            "running",
+            initial_count,
+            f"Resuming at regional hub {start_index + 1} of {len(NORTH_AMERICA_SCAN_TARGETS)}.",
+        )
+        worker.start()
+    except Exception as exc:
+        try:
+            update_scrape_job(
+                job_id,
+                "failed",
+                initial_count,
+                f"Could not resume the background scan: {exc}"[:500],
+            )
+        finally:
+            scrape_lock.release()
+        raise
+    return jsonify({"id": job_id, "status": "running", "progress": start_index}), 202
+
 
 @app.route("/api/sales", methods=["GET"])
 def get_sales():

@@ -61,6 +61,93 @@ class ScraperTests(unittest.TestCase):
         self.assertEqual(listings[0]["lng"], -99.95)
         geocode.assert_called_once_with("West End, Brandon, Manitoba")
 
+    def test_ebrandon_covers_nearby_manitoba_places_only(self):
+        self.assertTrue(
+            scraper._is_ebrandon_area(
+                "Virden, Manitoba, Canada",
+                "CA",
+                49.85,
+                -100.93,
+            )
+        )
+        self.assertFalse(
+            scraper._is_ebrandon_area(
+                "Winnipeg, Manitoba, Canada",
+                "CA",
+                49.8951,
+                -97.1384,
+            )
+        )
+        self.assertFalse(
+            scraper._is_ebrandon_area(
+                "Regina, Saskatchewan, Canada",
+                "CA",
+                50.4452,
+                -104.6189,
+            )
+        )
+
+    def test_location_scrape_checks_ebrandon_nearby_in_manitoba(self):
+        with (
+            patch.object(scraper, "_scrape_ebrandon", return_value=[]) as ebrandon,
+            patch.object(scraper, "_scrape_garagesalefinder") as garage_sale_finder,
+            patch.object(
+                scraper,
+                "_scrape_ticketmaster",
+                return_value=([], "Ticketmaster: skipped (no API key)"),
+            ),
+            patch.object(scraper, "_save_listings", return_value=0),
+        ):
+            count, message = scraper.run_location_scrape(
+                "Virden, Manitoba, Canada",
+                latitude=49.85,
+                longitude=-100.93,
+                country_code="CA",
+            )
+
+        self.assertEqual(count, 0)
+        self.assertIn("eBrandon: 0 current/upcoming sale(s) in its local coverage area", message)
+        ebrandon.assert_called_once_with("Virden, Manitoba, Canada", "CA", 49.85, -100.93)
+        garage_sale_finder.assert_not_called()
+
+    def test_north_america_targets_cover_every_state_and_canadian_region(self):
+        targets = scraper.NORTH_AMERICA_SCAN_TARGETS
+        us_targets = [target for target in targets if target[3] == "US"]
+        canada_targets = [target for target in targets if target[3] == "CA"]
+
+        self.assertEqual(len(us_targets), 51)
+        self.assertEqual(len(canada_targets), 19)
+        self.assertEqual(len(targets), 70)
+        self.assertEqual(
+            {target[3] for target in targets},
+            {"US", "CA"},
+        )
+        self.assertTrue(
+            all(
+                scraper._garage_sale_finder_location_slug(target[0], target[3])
+                for target in us_targets
+            )
+        )
+
+    def test_north_america_scan_reports_resumable_progress(self):
+        first_remaining = scraper.NORTH_AMERICA_SCAN_TARGETS[-2:]
+        progress_updates = []
+
+        def record_progress(*values):
+            progress_updates.append(values)
+
+        with patch.object(scraper, "run_location_scrape", return_value=(2, "source status")) as scrape:
+            saved = scraper.run_north_america_scan(
+                record_progress,
+                start_index=len(scraper.NORTH_AMERICA_SCAN_TARGETS) - len(first_remaining),
+                initial_count=4,
+            )
+
+        self.assertEqual(saved, 8)
+        self.assertEqual(scrape.call_count, 2)
+        self.assertEqual([update[0] for update in progress_updates], [69, 70])
+        self.assertEqual([update[2] for update in progress_updates], [6, 8])
+
     def test_garagesalefinder_parses_current_and_upcoming_sales(self):
         today = date.today()
         fixture_page = '<div id="city-sale-list">' + "".join((

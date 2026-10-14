@@ -19,6 +19,7 @@ GARAGESALEFINDER_URL = "https://garagesalefinder.com"
 GARAGESALEFINDER_MAX_SALES = 25
 GARAGESALEFINDER_MAX_CARDS = 50
 GARAGESALEFINDER_RADIUS_KM = 80.5
+EBRANDON_RADIUS_KM = 80.5
 US_STATES = {
     "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
     "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
@@ -35,6 +36,78 @@ US_STATES = {
     "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
 }
 US_STATE_CODES = {code.casefold(): code for code in US_STATES.values()}
+NORTH_AMERICA_SCAN_TARGETS = (
+    ("Montgomery, Alabama, United States", 32.3668, -86.3000, "US"),
+    ("Juneau, Alaska, United States", 58.3019, -134.4197, "US"),
+    ("Phoenix, Arizona, United States", 33.4484, -112.0740, "US"),
+    ("Little Rock, Arkansas, United States", 34.7465, -92.2896, "US"),
+    ("Sacramento, California, United States", 38.5816, -121.4944, "US"),
+    ("Denver, Colorado, United States", 39.7392, -104.9903, "US"),
+    ("Hartford, Connecticut, United States", 41.7658, -72.6734, "US"),
+    ("Dover, Delaware, United States", 39.1582, -75.5244, "US"),
+    ("Washington, District of Columbia, United States", 38.9072, -77.0369, "US"),
+    ("Tallahassee, Florida, United States", 30.4383, -84.2807, "US"),
+    ("Atlanta, Georgia, United States", 33.7490, -84.3880, "US"),
+    ("Honolulu, Hawaii, United States", 21.3099, -157.8581, "US"),
+    ("Boise, Idaho, United States", 43.6150, -116.2023, "US"),
+    ("Springfield, Illinois, United States", 39.7817, -89.6501, "US"),
+    ("Indianapolis, Indiana, United States", 39.7684, -86.1581, "US"),
+    ("Des Moines, Iowa, United States", 41.5868, -93.6250, "US"),
+    ("Topeka, Kansas, United States", 39.0473, -95.6752, "US"),
+    ("Frankfort, Kentucky, United States", 38.2009, -84.8733, "US"),
+    ("Baton Rouge, Louisiana, United States", 30.4515, -91.1871, "US"),
+    ("Augusta, Maine, United States", 44.3106, -69.7795, "US"),
+    ("Annapolis, Maryland, United States", 38.9784, -76.4922, "US"),
+    ("Boston, Massachusetts, United States", 42.3601, -71.0589, "US"),
+    ("Lansing, Michigan, United States", 42.7325, -84.5555, "US"),
+    ("Saint Paul, Minnesota, United States", 44.9537, -93.0900, "US"),
+    ("Jackson, Mississippi, United States", 32.2988, -90.1848, "US"),
+    ("Jefferson City, Missouri, United States", 38.5767, -92.1735, "US"),
+    ("Helena, Montana, United States", 46.5884, -112.0245, "US"),
+    ("Lincoln, Nebraska, United States", 40.8136, -96.7026, "US"),
+    ("Carson City, Nevada, United States", 39.1638, -119.7674, "US"),
+    ("Concord, New Hampshire, United States", 43.2081, -71.5376, "US"),
+    ("Trenton, New Jersey, United States", 40.2171, -74.7429, "US"),
+    ("Santa Fe, New Mexico, United States", 35.6870, -105.9378, "US"),
+    ("Albany, New York, United States", 42.6526, -73.7562, "US"),
+    ("Raleigh, North Carolina, United States", 35.7796, -78.6382, "US"),
+    ("Bismarck, North Dakota, United States", 46.8083, -100.7837, "US"),
+    ("Columbus, Ohio, United States", 39.9612, -82.9988, "US"),
+    ("Oklahoma City, Oklahoma, United States", 35.4676, -97.5164, "US"),
+    ("Salem, Oregon, United States", 44.9429, -123.0351, "US"),
+    ("Harrisburg, Pennsylvania, United States", 40.2732, -76.8867, "US"),
+    ("Providence, Rhode Island, United States", 41.8240, -71.4128, "US"),
+    ("Columbia, South Carolina, United States", 34.0007, -81.0348, "US"),
+    ("Pierre, South Dakota, United States", 44.3683, -100.3510, "US"),
+    ("Nashville, Tennessee, United States", 36.1627, -86.7816, "US"),
+    ("Austin, Texas, United States", 30.2672, -97.7431, "US"),
+    ("Salt Lake City, Utah, United States", 40.7608, -111.8910, "US"),
+    ("Montpelier, Vermont, United States", 44.2601, -72.5754, "US"),
+    ("Richmond, Virginia, United States", 37.5407, -77.4360, "US"),
+    ("Olympia, Washington, United States", 47.0379, -122.9007, "US"),
+    ("Charleston, West Virginia, United States", 38.3498, -81.6326, "US"),
+    ("Madison, Wisconsin, United States", 43.0731, -89.4012, "US"),
+    ("Cheyenne, Wyoming, United States", 41.1400, -104.8202, "US"),
+    ("St. John's, Newfoundland and Labrador, Canada", 47.5615, -52.7126, "CA"),
+    ("Charlottetown, Prince Edward Island, Canada", 46.2382, -63.1311, "CA"),
+    ("Halifax, Nova Scotia, Canada", 44.6488, -63.5752, "CA"),
+    ("Fredericton, New Brunswick, Canada", 45.9636, -66.6431, "CA"),
+    ("Quebec City, Quebec, Canada", 46.8139, -71.2080, "CA"),
+    ("Toronto, Ontario, Canada", 43.6532, -79.3832, "CA"),
+    ("Winnipeg, Manitoba, Canada", 49.8951, -97.1384, "CA"),
+    ("Regina, Saskatchewan, Canada", 50.4452, -104.6189, "CA"),
+    ("Edmonton, Alberta, Canada", 53.5461, -113.4938, "CA"),
+    ("Victoria, British Columbia, Canada", 48.4284, -123.3656, "CA"),
+    ("Whitehorse, Yukon, Canada", 60.7212, -135.0568, "CA"),
+    ("Yellowknife, Northwest Territories, Canada", 62.4540, -114.3718, "CA"),
+    ("Iqaluit, Nunavut, Canada", 63.7467, -68.5170, "CA"),
+    ("Brandon, Manitoba, Canada", 49.8485, -99.9501, "CA"),
+    ("Vancouver, British Columbia, Canada", 49.2827, -123.1207, "CA"),
+    ("Calgary, Alberta, Canada", 51.0447, -114.0719, "CA"),
+    ("Montreal, Quebec, Canada", 45.5019, -73.5674, "CA"),
+    ("Ottawa, Ontario, Canada", 45.4215, -75.6972, "CA"),
+    ("Saskatoon, Saskatchewan, Canada", 52.1332, -106.6700, "CA"),
+)
 
 
 def _fetch(url):
@@ -117,8 +190,19 @@ def _geohash(latitude, longitude, precision=8):
     return "".join(output)
 
 
-def _scrape_ebrandon(location, country_code):
-    if country_code != "CA" or location.split(",", 1)[0].casefold() != "brandon":
+def _is_ebrandon_area(location, country_code, latitude, longitude):
+    if country_code != "CA":
+        return False
+    parts = [part.strip().casefold() for part in location.split(",")]
+    if not any(part in {"manitoba", "mb"} for part in parts):
+        return False
+    if latitude is None or longitude is None:
+        return parts[0] == "brandon"
+    return _distance_km(latitude, longitude, 49.8485, -99.9501) <= EBRANDON_RADIUS_KM
+
+
+def _scrape_ebrandon(location, country_code, latitude=None, longitude=None):
+    if not _is_ebrandon_area(location, country_code, latitude, longitude):
         return []
 
     category_url = "https://www.ebrandon.ca/browseads.aspx?cat_id=81"
@@ -169,6 +253,13 @@ def _scrape_ebrandon(location, country_code):
         address = re.sub(r"(?:,\s*|\s+)Brandon(?:\s*,?\s*Brandon)?$", "", address, flags=re.IGNORECASE).strip(" ,")
         coordinates = _geocode(f"{address}, Brandon, Manitoba" if address else "Brandon, Manitoba")
         if not coordinates:
+            continue
+        if latitude is not None and longitude is not None and _distance_km(
+            latitude,
+            longitude,
+            coordinates[0],
+            coordinates[1],
+        ) > EBRANDON_RADIUS_KM:
             continue
 
         description = ""
@@ -493,20 +584,20 @@ def run_location_scrape(location, latitude=None, longitude=None, country_code=No
     listings = []
     source_results = []
 
-    try:
-        ebrandon = _scrape_ebrandon(location, country_code)
-        listings.extend(ebrandon)
-        if country_code == "CA" and location.split(",", 1)[0].casefold() == "brandon":
-            source_results.append(f"eBrandon: {len(ebrandon)} current/upcoming sale(s)")
-        else:
-            source_results.append("eBrandon: skipped (only covers Brandon, Manitoba)")
-    except requests.RequestException as exc:
-        source_results.append(f"eBrandon: unavailable ({exc})")
-
     if latitude is None or longitude is None:
         coordinates = _geocode(location)
         if coordinates:
             latitude, longitude = coordinates
+
+    try:
+        ebrandon = _scrape_ebrandon(location, country_code, latitude, longitude)
+        listings.extend(ebrandon)
+        if _is_ebrandon_area(location, country_code, latitude, longitude):
+            source_results.append(f"eBrandon: {len(ebrandon)} current/upcoming sale(s) in its local coverage area")
+        else:
+            source_results.append("eBrandon: skipped (covers Brandon and nearby southwest Manitoba only)")
+    except requests.RequestException as exc:
+        source_results.append(f"eBrandon: unavailable ({exc})")
 
     if _garage_sale_finder_location_slug(location, country_code):
         try:
@@ -550,3 +641,29 @@ def run_location_scrape(location, latitude=None, longitude=None, country_code=No
 
     saved = _save_listings(listings)
     return saved, "; ".join(source_results)
+
+
+def run_north_america_scan(progress_callback, start_index=0, initial_count=0):
+    total_steps = len(NORTH_AMERICA_SCAN_TARGETS)
+    if not 0 <= start_index <= total_steps:
+        raise ValueError("The scan progress is outside the available target range.")
+
+    saved = initial_count
+    for index, (location, latitude, longitude, country_code) in enumerate(
+        NORTH_AMERICA_SCAN_TARGETS[start_index:],
+        start=start_index,
+    ):
+        count, _ = run_location_scrape(
+            location,
+            latitude=latitude,
+            longitude=longitude,
+            country_code=country_code,
+        )
+        saved += count
+        progress_callback(
+            index + 1,
+            total_steps,
+            saved,
+            location,
+        )
+    return saved
