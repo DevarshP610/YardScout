@@ -1,8 +1,10 @@
 import os
+import math
 import re
 import time
+import unicodedata
 from datetime import date, datetime, timezone
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,6 +15,26 @@ HEADERS = {
 REQUEST_TIMEOUT = 18
 SCRAPER_EMAIL = "scraper@auto.com"
 TICKETMASTER_API_KEY = os.environ.get("TICKETMASTER_API_KEY")
+GARAGESALEFINDER_URL = "https://garagesalefinder.com"
+GARAGESALEFINDER_MAX_SALES = 25
+GARAGESALEFINDER_MAX_CARDS = 50
+GARAGESALEFINDER_RADIUS_KM = 80.5
+US_STATES = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "district of columbia": "DC", "florida": "FL", "georgia": "GA", "hawaii": "HI",
+    "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS",
+    "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS",
+    "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV",
+    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK",
+    "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI",
+    "south carolina": "SC", "south dakota": "SD", "tennessee": "TN", "texas": "TX",
+    "utah": "UT", "vermont": "VT", "virginia": "VA", "washington": "WA",
+    "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+}
+US_STATE_CODES = {code.casefold(): code for code in US_STATES.values()}
 
 
 def _fetch(url):
@@ -170,6 +192,120 @@ def _scrape_ebrandon(location, country_code):
             "source_url": item_url,
         })
     return listings
+
+
+def _garage_sale_finder_location_slug(location, country_code):
+    if not isinstance(country_code, str) or country_code.upper() != "US":
+        return None
+    parts = [part.strip() for part in location.split(",") if part.strip()]
+    if len(parts) < 2:
+        return None
+
+    state_code = None
+    for part in parts[1:]:
+        normalized_part = part.casefold()
+        state_code = US_STATES.get(normalized_part) or US_STATE_CODES.get(normalized_part)
+        if state_code:
+            break
+    if not state_code:
+        return None
+
+    city = unicodedata.normalize("NFKD", parts[0]).encode("ascii", "ignore").decode("ascii")
+    city_slug = re.sub(r"[^a-z0-9]+", "-", city.casefold()).strip("-")
+    if not city_slug:
+        return None
+    return f"{city_slug}-{state_code.casefold()}"
+
+
+def _parse_garagesalefinder_date(value):
+    for date_format in ("%m/%d/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value, date_format).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _distance_km(latitude_a, longitude_a, latitude_b, longitude_b):
+    earth_radius_km = 6371.0088
+    lat_a = math.radians(latitude_a)
+    lat_b = math.radians(latitude_b)
+    latitude_delta = lat_b - lat_a
+    longitude_delta = math.radians(longitude_b - longitude_a)
+    haversine = (
+        math.sin(latitude_delta / 2) ** 2
+        + math.cos(lat_a) * math.cos(lat_b) * math.sin(longitude_delta / 2) ** 2
+    )
+    return 2 * earth_radius_km * math.asin(math.sqrt(min(haversine, 1.0)))
+
+
+def _scrape_garagesalefinder(location, latitude, longitude, country_code):
+    location_slug = _garage_sale_finder_location_slug(location, country_code)
+    if not location_slug:
+        return []
+
+    city_url = f"{GARAGESALEFINDER_URL}/yard-sales/{location_slug}/"
+    soup = BeautifulSoup(_fetch(city_url).text, "html.parser")
+    listings = []
+    geocoded_locations = {}
+    today = date.today()
+
+    for title_element in soup.select("#city-sale-list a.sale-url")[:GARAGESALEFINDER_MAX_CARDS]:
+        if len(listings) >= GARAGESALEFINDER_MAX_SALES:
+            break
+        href = title_element.get("href")
+        if not isinstance(href, str) or not href:
+            continue
+        source_url = urljoin(city_url, href)
+        parsed_source_url = urlsplit(source_url)
+        if parsed_source_url.scheme != "https" or parsed_source_url.hostname != "garagesalefinder.com":
+            continue
+
+        card = title_element.find_parent("div", class_="row")
+        if card is None:
+            continue
+        address_element = card.select_one(".sale-address")
+        date_element = card.select_one(".sale-date")
+        title = title_element.get_text(" ", strip=True)
+        address = address_element.get_text(" ", strip=True) if address_element else ""
+        if not title or not address or not re.search(r"\b\d{5}(?:-\d{4})?\b", address):
+            continue
+        if date_element is None:
+            continue
+
+        start_date = _parse_garagesalefinder_date(date_element.get("data-date-from", ""))
+        end_date = _parse_garagesalefinder_date(date_element.get("data-date-to", ""))
+        if start_date is None or end_date is None or end_date < today:
+            continue
+        sale_date = max(start_date, today)
+
+        if address not in geocoded_locations:
+            geocoded_locations[address] = _geocode(address)
+        coordinates = geocoded_locations[address]
+        if not coordinates:
+            continue
+        sale_latitude, sale_longitude = coordinates
+        if not (-90 <= sale_latitude <= 90 and -180 <= sale_longitude <= 180):
+            continue
+        if _distance_km(latitude, longitude, sale_latitude, sale_longitude) > GARAGESALEFINDER_RADIUS_KM:
+            continue
+
+        description_element = card.select_one(".sale-desc")
+        description = description_element.get_text(" ", strip=True) if description_element else ""
+        date_note = f"Sale dates: {start_date.isoformat()} to {end_date.isoformat()}."
+        location_note = f"Approximate location from postal code: {address}."
+        description = " ".join(part for part in (description, date_note, location_note) if part)
+        listings.append({
+            "title": title[:250],
+            "date": sale_date.isoformat(),
+            "description": description[:2000],
+            "lat": sale_latitude,
+            "lng": sale_longitude,
+            "source_name": "GarageSaleFinder",
+            "source_url": source_url,
+        })
+    return listings
+
 
 def _scrape_ticketmaster(location, latitude, longitude, country_code):
     if not TICKETMASTER_API_KEY:
@@ -372,6 +508,25 @@ def run_location_scrape(location, latitude=None, longitude=None, country_code=No
         if coordinates:
             latitude, longitude = coordinates
 
+    if _garage_sale_finder_location_slug(location, country_code):
+        try:
+            if latitude is None or longitude is None:
+                raise requests.RequestException("Could not resolve the selected location coordinates.")
+            garage_sale_finder = _scrape_garagesalefinder(
+                location,
+                latitude,
+                longitude,
+                country_code,
+            )
+            listings.extend(garage_sale_finder)
+            source_results.append(
+                f"GarageSaleFinder: {len(garage_sale_finder)} current/upcoming sale(s) near {location}"
+            )
+        except requests.RequestException as exc:
+            source_results.append(f"GarageSaleFinder: unavailable ({exc})")
+    else:
+        source_results.append("GarageSaleFinder: skipped (US city/state pages only; no Canadian listing coverage)")
+
     try:
         if latitude is None or longitude is None:
             raise requests.RequestException("Could not resolve the selected location coordinates.")
@@ -389,7 +544,6 @@ def run_location_scrape(location, latitude=None, longitude=None, country_code=No
         "Craigslist: not scanned; its terms prohibit unlicensed automated searching.",
         "Kijiji: not scanned; no verified public event feed, and search results include ordinary item ads.",
         "Used.ca: not scanned; its robots.txt excludes search routes and no event feed is verified.",
-        "GarageSaleFinder: not scanned; its terms prohibit automated data collection.",
         "Facebook: not scanned; Meta requires separate express written permission for automated collection.",
         "eBay: item ads are not garage-sale events; not imported as events.",
     ))
