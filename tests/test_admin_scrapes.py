@@ -50,13 +50,14 @@ class AdminScrapeTests(unittest.TestCase):
             ("Expired exactly seven days ago", 7),
             ("Expired more than seven days ago", 8),
             ("Still recent", 6),
+            ("Upcoming in a month", -30),
         ):
             conn.execute(
                 """
                 INSERT INTO sales (title, date, lat, lng)
                 VALUES (?, date('now', ?), 49.8, -99.9)
                 """,
-                (title, f"-{days_ago} days"),
+                (title, f"{-days_ago:+d} days"),
             )
         conn.commit()
         conn.close()
@@ -65,7 +66,7 @@ class AdminScrapeTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         remaining_titles = {sale["title"] for sale in response.get_json()}
-        self.assertEqual(remaining_titles, {"Still recent"})
+        self.assertEqual(remaining_titles, {"Still recent", "Upcoming in a month"})
 
     def test_starting_regional_scan_is_admin_only_and_persists_job(self):
         with patch.object(app.threading.Thread, "start", autospec=True):
