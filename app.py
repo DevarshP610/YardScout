@@ -268,6 +268,12 @@ def home():
     user = session.get("user")
     return render_template("index.html", user=user)
 
+
+@app.route("/googlecca4542b2772bb8d.html")
+def google_site_verification():
+    return app.send_static_file("googlecca4542b2772bb8d.html")
+
+
 @app.route("/login")
 def login():
     if not os.environ.get("GOOGLE_CLIENT_ID") or not os.environ.get("GOOGLE_CLIENT_SECRET"):
