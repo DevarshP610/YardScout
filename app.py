@@ -30,6 +30,7 @@ if DATABASE_URL and psycopg2 is None:
         "Install psycopg2-binary instead of silently falling back to SQLite."
     )
 USE_SQLITE = not DATABASE_URL
+SALE_RETENTION_DAYS = 7
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "devarshp610@gmail.com").strip().casefold()
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "garage_sale_finder.db")
 scrape_lock = threading.Lock()
@@ -741,11 +742,16 @@ def resume_north_america_scrape(job_id):
 def get_sales():
     conn = get_db()
     cur = conn.cursor()
-    # Database hosts use UTC, which can already be tomorrow for local users.
     if USE_SQLITE:
-        cur.execute("DELETE FROM sales WHERE date < date('now', '-1 day')")
+        cur.execute(
+            "DELETE FROM sales WHERE date <= date('now', ?)",
+            (f"-{SALE_RETENTION_DAYS} days",),
+        )
     else:
-        cur.execute("DELETE FROM sales WHERE date < (CURRENT_DATE - 1)::text")
+        cur.execute(
+            "DELETE FROM sales WHERE date <= (CURRENT_DATE - %s)::text",
+            (SALE_RETENTION_DAYS,),
+        )
     cur.execute("SELECT * FROM sales ORDER BY id DESC")
     sales = cur.fetchall()
     conn.commit()

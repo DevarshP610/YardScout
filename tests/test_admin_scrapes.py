@@ -44,6 +44,29 @@ class AdminScrapeTests(unittest.TestCase):
         if app.scrape_lock.locked():
             app.scrape_lock.release()
 
+    def test_loading_sales_removes_listings_seven_days_after_sale(self):
+        conn = self._connect()
+        for title, days_ago in (
+            ("Expired exactly seven days ago", 7),
+            ("Expired more than seven days ago", 8),
+            ("Still recent", 6),
+        ):
+            conn.execute(
+                """
+                INSERT INTO sales (title, date, lat, lng)
+                VALUES (?, date('now', ?), 49.8, -99.9)
+                """,
+                (title, f"-{days_ago} days"),
+            )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/api/sales")
+
+        self.assertEqual(response.status_code, 200)
+        remaining_titles = {sale["title"] for sale in response.get_json()}
+        self.assertEqual(remaining_titles, {"Still recent"})
+
     def test_starting_regional_scan_is_admin_only_and_persists_job(self):
         with patch.object(app.threading.Thread, "start", autospec=True):
             response = self.client.post(

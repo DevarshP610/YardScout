@@ -9,6 +9,7 @@ Find upcoming garage sales on a map, search listings, or submit a sale.
 - Public map and listing search, built with Flask, Leaflet, and OpenStreetMap.
 - Separate admin tools for moderation, manual entry, screenshot text extraction, and scraper runs.
 - Scraper sources: eBrandon around Brandon, Manitoba; owner-authorized GarageSaleFinder pages in the U.S.; optional Ticketmaster event lookup.
+- Past listings are removed automatically when listings load, once they are at least seven days past the sale date.
 - The resumable regional sweep checks 70 hubs, not every town or website. Facebook, Kijiji, Craigslist, and other sources are not scanned without approved access.
 
 ## Run locally
