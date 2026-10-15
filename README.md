@@ -35,6 +35,33 @@ This is a learning project, not a one-click distribution package. Running your o
 
 For local experimentation, install the packages listed in `requirements.txt` and run the Flask app with your own environment configuration. The repository includes a Render Blueprint as a deployment example; review its settings and the host's current limits before using it. GitHub Pages cannot run Flask or the scraper.
 
+### Free hosting and data safety
+
+The app uses PostgreSQL when `DATABASE_URL` is configured and falls back to SQLite otherwise. Render's free web services have an ephemeral filesystem, so SQLite data stored on the service can disappear after a restart, spin-down, or deploy. The Render Blueprint intentionally leaves `DATABASE_URL` unset for you to configure; check the admin page's **Data safety** section and confirm it says PostgreSQL before relying on hosted writes.
+
+For a $0 hobby deployment, one current option is a Render free web service connected to a Neon Free PostgreSQL project. Neon currently describes its Free plan as permanent and no-credit-card, with a 1 GB storage limit, 100 compute-hours per project, and a 6-hour history window; free-tier limits and terms can change. Render's own free PostgreSQL instances expire after 30 days, so don't treat one as permanent storage.
+
+Before changing the live database:
+
+1. Sign in as the admin and download a backup from **Admin → Data safety**. The JSON includes listings, user-submitted listing metadata, and scraper job history; keep it private and do not send it to GitHub.
+2. Create a free PostgreSQL project and copy its connection string. Add it as `DATABASE_URL` in the Render service's environment settings; do not put the value in source code, this repository, screenshots, or chat.
+3. Restore the downloaded backup into the new empty database from a trusted local terminal. In PowerShell, enter the URL at the interactive prompt, run the restore tool, then remove it from the current shell:
+
+   ```powershell
+   $env:DATABASE_URL = Read-Host "Paste the database connection string"
+   try {
+     .\.venv\Scripts\python.exe scripts\restore_backup.py .\yardscout-backup-YYYYMMDDTHHMMSSZ.json
+   } finally {
+     Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+   }
+   ```
+
+   Run this from the repository root with the project environment installed. The restore tool refuses to overwrite a non-empty database unless `--replace` is explicitly supplied. Do not use that option unless replacing the target data is intended.
+
+4. Verify the restore completed, set the same `DATABASE_URL` in Render, and redeploy. Confirm the admin page reports PostgreSQL and download a fresh backup as a recovery check.
+
+Make a private backup before meaningful changes and keep at least one copy outside the hosting provider. This project does not upload backups automatically or guarantee recovery from an inaccessible service. The deployed site's database provider cannot be confirmed from source code alone.
+
 ## License and reuse
 
 YardScout is published under the **PolyForm Noncommercial License 1.0.0**. You may inspect, study, and use the code for permitted noncommercial purposes, subject to the license. Commercial use requires separate permission from the copyright holder.

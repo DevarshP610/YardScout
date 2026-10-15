@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import tempfile
@@ -76,6 +77,45 @@ class AdminScrapeTests(unittest.TestCase):
             "/api/admin/scrapes",
             json={"scope": "north_america"},
         )
+        self.assertEqual(denied.status_code, 403)
+
+    def test_admin_backup_download_is_authenticated_and_contains_both_tables(self):
+        conn = self._connect()
+        conn.execute(
+            """
+            INSERT INTO sales
+                (title, date, lat, lng, user_email, user_name, source_name, source_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "Community yard sale",
+                "2030-06-01",
+                49.8,
+                -99.9,
+                "seller@example.test",
+                "Community member",
+                "Admin-entered",
+                "https://example.test/sale",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO scrape_jobs (location, status) VALUES (?, ?)",
+            ("Brandon, Manitoba", "completed"),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/api/admin/backup")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        backup = json.loads(response.get_data(as_text=True))
+        self.assertEqual(backup["format"], "yardscout-json-backup")
+        self.assertEqual(backup["format_version"], 1)
+        self.assertEqual(backup["tables"]["sales"][0]["source_url"], "https://example.test/sale")
+        self.assertEqual(backup["tables"]["scrape_jobs"][0]["location"], "Brandon, Manitoba")
+
+        denied = app.app.test_client().get("/api/admin/backup")
         self.assertEqual(denied.status_code, 403)
 
     def test_legacy_scrape_jobs_table_migrates_progress_columns(self):
