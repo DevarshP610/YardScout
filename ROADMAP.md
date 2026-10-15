@@ -25,7 +25,7 @@ Small, reviewable commits should each leave the project in a testable state. Com
 - **Weeks 7–8:** Add useful map filters and listing-quality feedback.
 - **Weeks 9–10:** Add favorites, address accessibility/mobile issues, then release and collect feedback.
 
-At two focused hours per week, expect the baseline to take roughly 15–22 weeks. The full baseline is around 30–45 focused hours and 22–30 micro-commits, plus 2–4 commits for each approved source adapter. Stop at completed milestones when school gets busy rather than leaving unfinished features on `main`.
+At two focused hours per week, expect the baseline to take roughly 17–25 weeks. The milestones total about 33–50 focused hours and 25–35 micro-commits, including research and the first approved source adapter. Each additional approved adapter adds about 3–6 hours and 2–4 commits. Stop at completed milestones when school gets busy rather than leaving unfinished features on `main`.
 
 ## Guardrails
 

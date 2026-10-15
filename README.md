@@ -1,51 +1,33 @@
 # YardScout
 
-YardScout is a garage-sale discovery project: browse local listings on a map, search by keyword, and add a sale after signing in.
+Find upcoming garage sales on a map, search listings, or submit a sale.
 
 **Live site:** https://yardscout.onrender.com
 
-## What it demonstrates
+## Features and coverage
 
-- A map-based interface built with Leaflet and OpenStreetMap
-- A Flask application with JSON endpoints and Google sign-in
-- Persistent listing storage with PostgreSQL, with SQLite available for local experimentation
-- A restricted admin area for reviewing listings and starting location-based searches
-- Public-source listing imports with source links and date/location checks
+- Public map and listing search, built with Flask, Leaflet, and OpenStreetMap.
+- Separate admin tools for moderation, manual entry, screenshot text extraction, and scraper runs.
+- Scraper sources: eBrandon around Brandon, Manitoba; owner-authorized GarageSaleFinder pages in the U.S.; optional Ticketmaster event lookup.
+- The resumable regional sweep checks 70 hubs, not every town or website. Facebook, Kijiji, Craigslist, and other sources are not scanned without approved access.
 
-## Project tour
+## Run locally
 
-Use the repository to explore how the pieces fit together:
+Install `requirements.txt`, configure your own database and Google OAuth credentials, then run the Flask app. Never reuse or publish another operator's credentials. GitHub Pages cannot host this Flask app.
 
-1. Start with `templates/index.html` to see the public map, listing form, search, and browser-side API calls.
-2. Follow those requests into `app.py` to see route handling, authentication, database operations, and admin access checks.
-3. Read `scraper.py` to see how supported public sources are queried, listings are parsed, and results are saved.
-4. Review `templates/admin.html` for the separate admin interface.
+Main files: `app.py` (routes and database), `scraper.py` (source adapters), `templates/index.html` (public site), and `templates/admin.html` (admin tools).
 
-The location picker uses Photon with OpenStreetMap data to suggest US and Canadian cities and towns; it is not limited to a hardcoded list of markets. That expands place selection, not listing-source coverage. The scraper supports eBrandon listings within about 80 km of Brandon, Manitoba and, with the site owner's permission, public GarageSaleFinder city pages for US locations. GarageSaleFinder currently has no Canadian coverage; the scraper skips it for Canadian locations. GarageSaleFinder listings use approximate postal-code coordinates and retain the original source link. An optional `TICKETMASTER_API_KEY` enables exact-phrase searches through Ticketmaster's official event API, but Ticketmaster is not a general garage-sale feed and may return no relevant events.
+## Hosting and data safety
 
-Admins can manually start a North America regional sweep. It checks one hub in each of the 50 US states and Washington, D.C., one hub in each Canadian province and territory, Brandon, and six additional Canadian cities. The sweep reports progress and can be resumed after an application restart. It only queries sources already enabled for each location; it does not visit every city or add coverage from sites without approved access.
+Render's free web service has ephemeral storage. Use PostgreSQL for hosted data; SQLite is for local development and can be lost on Render restarts or deploys. The app's admin **Data safety** panel shows the selected database and provides a private JSON backup.
 
-Other sites remain disabled unless their owners provide approved access: Used.ca's `robots.txt` excludes search routes; Meta requires separate express written permission for automated collection; and no verified Kijiji public event feed is available. Kijiji search results can be ordinary item ads rather than dated garage-sale events. Craigslist is not searched without authorization, and eBay item ads are not treated as sale events. Admins can review a public listing themselves and add it with its source link through the existing manual-entry tools.
+For a no-cost hobby setup, Render plus a free external PostgreSQL plan may work, but check current provider limits and retention before relying on it. Render's free PostgreSQL databases expire after 30 days.
 
-Admins can also create a listing from a screenshot in the admin page. Text recognition runs in the admin's browser with Tesseract.js; the image is not uploaded to YardScout or sent to an OCR service. The OCR library and language data are loaded from a public CDN. Review the extracted title, date, details, and location before saving. Add the original listing link manually when available.
+Before switching databases:
 
-## Run and deploy
-
-This is a learning project, not a one-click distribution package. Running your own instance requires setting up your own database, OAuth client, admin account, and hosting, then configuring each service for your own domain. Do not reuse another operator's credentials or deployment configuration.
-
-For local experimentation, install the packages listed in `requirements.txt` and run the Flask app with your own environment configuration. The repository includes a Render Blueprint as a deployment example; review its settings and the host's current limits before using it. GitHub Pages cannot run Flask or the scraper.
-
-### Free hosting and data safety
-
-The app uses PostgreSQL when `DATABASE_URL` is configured and falls back to SQLite otherwise. Render's free web services have an ephemeral filesystem, so SQLite data stored on the service can disappear after a restart, spin-down, or deploy. The Render Blueprint intentionally leaves `DATABASE_URL` unset for you to configure; check the admin page's **Data safety** section and confirm it says PostgreSQL before relying on hosted writes.
-
-For a $0 hobby deployment, one current option is a Render free web service connected to a Neon Free PostgreSQL project. Neon currently describes its Free plan as permanent and no-credit-card, with a 1 GB storage limit, 100 compute-hours per project, and a 6-hour history window; free-tier limits and terms can change. Render's own free PostgreSQL instances expire after 30 days, so don't treat one as permanent storage.
-
-Before changing the live database:
-
-1. Sign in as the admin and download a backup from **Admin → Data safety**. The JSON includes listings, user-submitted listing metadata, and scraper job history; keep it private and do not send it to GitHub.
-2. Create a free PostgreSQL project and copy its connection string. Add it as `DATABASE_URL` in the Render service's environment settings; do not put the value in source code, this repository, screenshots, or chat.
-3. Restore the downloaded backup into the new empty database from a trusted local terminal. In PowerShell, enter the URL at the interactive prompt, run the restore tool, then remove it from the current shell:
+1. Download a backup from **Admin → Data safety** and keep it private.
+2. Create an empty PostgreSQL database; set its connection string as `DATABASE_URL` in Render. Never commit or share the value.
+3. Restore locally from the repository root:
 
    ```powershell
    $env:DATABASE_URL = Read-Host "Paste the database connection string"
@@ -56,16 +38,25 @@ Before changing the live database:
    }
    ```
 
-   Run this from the repository root with the project environment installed. The restore tool refuses to overwrite a non-empty database unless `--replace` is explicitly supplied. Do not use that option unless replacing the target data is intended.
+   The restore tool refuses to overwrite a non-empty database unless `--replace` is explicitly supplied.
+4. Set the same `DATABASE_URL` in Render, redeploy, confirm the admin panel reports PostgreSQL, and download a fresh backup.
 
-4. Verify the restore completed, set the same `DATABASE_URL` in Render, and redeploy. Confirm the admin page reports PostgreSQL and download a fresh backup as a recovery check.
+Keep a backup outside the hosting provider. YardScout does not back up data automatically or guarantee recovery from an inaccessible service.
 
-Make a private backup before meaningful changes and keep at least one copy outside the hosting provider. This project does not upload backups automatically or guarantee recovery from an inaccessible service. The deployed site's database provider cannot be confirmed from source code alone.
+## Roadmap timeline
 
-## License and reuse
+Planning estimate: **33–50 focused hours**, about **6–13 working weeks at 4–6 hours per week**. The schedule below allows 10 weeks; school, testing, and source permissions can shift it. A further approved source adapter adds 3–6 hours and 2–4 commits.
 
-YardScout is published under the **PolyForm Noncommercial License 1.0.0**. You may inspect, study, and use the code for permitted noncommercial purposes, subject to the license. Commercial use requires separate permission from the copyright holder.
+| When | Work | Estimate |
+|---|---|---:|
+| Weeks 1–2 | Finish persistent database setup and recovery checks; add automated tests on pushes and pull requests. | 6–9 hours |
+| Weeks 3–4 | Improve scraper source-level reporting, retries, and interrupted-run handling. | 5–7 hours |
+| Weeks 5–6 | Research Canadian sources; build the first adapter only if access and listing quality are verified. | 5–9+ hours |
+| Weeks 7–8 | Add map filters and listing-quality feedback, including duplicate and stale checks. | 9–13 hours |
+| Weeks 9–10 | Add saved sales, address mobile/accessibility issues, and prepare a release and feedback path. | 8–12 hours |
 
-This is a **source-available** project, not an OSI-approved open-source project. The source is visible because this GitHub repository is public; a license does not technically prevent people from downloading or copying files. It sets the terms under which they may use and distribute them. If you need the source itself hidden, the repository must be private.
+Work in small, testable commits; keep unfinished work off `main`. See [ROADMAP.md](./ROADMAP.md) for milestone details and project guardrails.
 
-See [LICENSE](./LICENSE) for the complete terms. For permission to use the project commercially, contact the repository owner through GitHub.
+## License
+
+Licensed under the [PolyForm Noncommercial License 1.0.0](./LICENSE). Commercial use requires permission from the copyright holder. This is source-available, not OSI-approved open source; see the license for terms.
