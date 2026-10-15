@@ -323,6 +323,7 @@
       flex: 1;
       overflow-y: auto;
       padding: 16px 24px 24px;
+      min-height: 0;
     }
 
     .list-header {
@@ -341,7 +342,7 @@
       padding: 16px;
       margin-bottom: 10px;
       position: relative;
-      cursor: pointer;
+      cursor: auto;
       transition: border-color .18s cubic-bezier(.2,.7,.2,1), box-shadow .18s cubic-bezier(.2,.7,.2,1), transform .18s cubic-bezier(.2,.7,.2,1), background .18s ease;
     }
 
@@ -805,6 +806,33 @@
     .list-header { margin-bottom: 12px; font-size: 10px; letter-spacing: .1em; }
     .sale-card { animation: card-arrive .35s cubic-bezier(.2,.7,.2,1) both; }
     .sale-card:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .sale-card-focus { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+    .sale-card-focus:hover { background: transparent; }
+    .sale-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; }
+    .route-stop-toggle, .btn-delete { min-height: 32px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
+    .sale-card-actions .btn-delete { position: static; width: auto; height: auto; }
+    .route-stop-toggle[aria-pressed="true"] { border-color: var(--accent-strong); background: var(--accent-soft); color: var(--accent-strong); }
+    .route-stop-toggle:disabled { opacity: .55; cursor: not-allowed; }
+    .route-planner { margin: 12px 20px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+    .route-planner > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; list-style: none; }
+    .route-planner > summary::-webkit-details-marker { display: none; }
+    .route-planner > summary::after { content: "+"; color: var(--accent-strong); font-size: 18px; line-height: 1; }
+    .route-planner[open] > summary::after { content: "−"; }
+    .route-planner-teaser { color: var(--muted); font-size: 10px; font-weight: 450; text-align: right; }
+    .route-planner-copy, .route-status, .route-privacy { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .route-field { margin-top: 11px; }
+    .route-field select { width: 100%; min-height: 38px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+    .route-button { width: 100%; min-height: 38px; margin-top: 9px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .18s cubic-bezier(.2,.7,.2,1), transform .18s cubic-bezier(.2,.7,.2,1); }
+    .route-button:hover:not(:disabled) { background: var(--accent-soft); transform: translateY(-1px); }
+    .route-button:disabled { opacity: .55; cursor: not-allowed; }
+    .route-status { min-height: 18px; margin-top: 9px; }
+    .route-result { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .route-result[hidden] { display: none; }
+    .route-summary { color: var(--ink); font-size: 12px; font-weight: 650; }
+    .route-itinerary { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 11px; }
+    .route-itinerary li + li { margin-top: 4px; }
+    .route-directions { display: block; margin-top: 9px; color: var(--accent-strong); font-size: 12px; font-weight: 650; }
+    .route-privacy { margin-top: 8px; font-size: 10px; }
     .sale-card-title { font-size: 14px; font-weight: 600; letter-spacing: -.015em; }
     .sale-card-date { color: var(--accent-strong); font-weight: 550; }
     .sale-card-desc { line-height: 1.55; }
@@ -1081,6 +1109,11 @@
       .logo-text { display: none; }
     }
 
+    @media (max-height: 820px) {
+      .sidebar { overflow-x: hidden; overflow-y: auto; }
+      .sales-list { flex: none; overflow: visible; min-height: 150px; }
+    }
+
     @media (max-height: 520px) and (max-width: 768px) {
       .guide-cover { min-height: 145px; }
       .guide-cover h2 { margin-top: 14px; font-size: 28px; }
@@ -1168,6 +1201,28 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg>
       </button>
     </div>
+    <details class="route-planner">
+      <summary>
+        <span>Weekend route</span>
+        <span class="route-planner-teaser">Choose day, stops, and start</span>
+      </summary>
+      <p class="route-planner-copy">Choose one weekend day, up to 8 sales, and a starting point on the map.</p>
+      <div class="route-field">
+        <label for="route-day">Sale day</label>
+        <select id="route-day">
+          <option value="">No upcoming weekend sales</option>
+        </select>
+      </div>
+      <button class="route-button" id="route-origin-button" type="button" disabled>Choose starting point on map</button>
+      <p class="route-status" id="route-status" role="status" aria-live="polite">Select a weekend date to see matching sales.</p>
+      <button class="route-button" id="build-route-button" type="button" disabled>Build driving route</button>
+      <div class="route-result" id="route-result" hidden>
+        <p class="route-summary" id="route-summary"></p>
+        <ol class="route-itinerary" id="route-itinerary"></ol>
+        <a class="route-directions" id="route-directions" target="_blank" rel="noopener noreferrer">Open turn-by-turn directions</a>
+      </div>
+      <p class="route-privacy">Route requests send the chosen start and sale coordinates to the public OSRM routing service. YardScout does not save routes.</p>
+    </details>
     <div class="form-section">
       <h2>Post a sale</h2>
       <p class="form-subtitle">Put the pin on the map, then add the day and the good stuff.</p>
@@ -1259,7 +1314,14 @@
         <span class="guide-chapter-number">03</span>
         <div>
           <h3>Keep it useful</h3>
-          <p>Use the sale’s approximate public location rather than someone’s private details. Listings are for upcoming sales and disappear after their date.</p>
+          <p>Use the sale’s approximate public location rather than someone’s private details. Listings are removed seven days after the sale date.</p>
+        </div>
+      </article>
+      <article class="guide-chapter">
+        <span class="guide-chapter-number">04</span>
+        <div>
+          <h3>Plan a Saturday loop</h3>
+          <p>Choose a weekend date, add up to eight sales, and click the map to set your starting point. YardScout estimates a driving order and can open the stops in Google Maps.</p>
         </div>
       </article>
       <div class="guide-footnote">Listings are community-submitted. YardScout does not automatically search Facebook Marketplace or every classifieds site, so a quiet map may simply mean no one has posted a sale nearby yet.</div>
@@ -1502,6 +1564,230 @@
   let filteredSales    = [];
   let visibleSalesCount = listingPageSize;
   let currentUserEmail = null;
+  const routeDayInput = document.getElementById('route-day');
+  const routeOriginButton = document.getElementById('route-origin-button');
+  const buildRouteButton = document.getElementById('build-route-button');
+  const routeStatus = document.getElementById('route-status');
+  const routeResult = document.getElementById('route-result');
+  const routeSummary = document.getElementById('route-summary');
+  const routeItinerary = document.getElementById('route-itinerary');
+  const routeDirections = document.getElementById('route-directions');
+  const maxRouteStops = 8;
+  const selectedRouteSaleIds = new Set();
+  let routeOrigin = null;
+  let routeOriginMarker = null;
+  let routeLine = null;
+  let selectingRouteOrigin = false;
+
+  function todayLocalIso() {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }
+
+  function clearBuiltRoute() {
+    if (routeLine) {
+      map.removeLayer(routeLine);
+      routeLine = null;
+    }
+    routeResult.hidden = true;
+    routeSummary.textContent = '';
+    routeItinerary.replaceChildren();
+    routeDirections.removeAttribute('href');
+  }
+
+  function updateRouteControls(statusMessage = '') {
+    const day = routeDayInput.value;
+    const matchingSales = day ? allSales.filter(sale => sale.date === day) : [];
+    const selectedCount = selectedRouteSaleIds.size;
+    routeOriginButton.disabled = !day;
+    routeOriginButton.textContent = routeOrigin
+      ? 'Change starting point on map'
+      : 'Choose starting point on map';
+    buildRouteButton.disabled = !day || !routeOrigin || !selectedCount || selectedCount > maxRouteStops;
+    if (statusMessage) {
+      routeStatus.textContent = statusMessage;
+    } else if (!day) {
+      routeStatus.textContent = 'No upcoming weekend sale dates are available.';
+    } else {
+      const startLabel = routeOrigin ? 'Starting point set' : 'Choose a start on the map';
+      routeStatus.textContent = `${selectedCount} of ${matchingSales.length} sales selected. ${startLabel}.`;
+    }
+    routeOriginButton.setAttribute('aria-pressed', String(selectingRouteOrigin));
+  }
+
+  function updateRouteDays() {
+    const today = todayLocalIso();
+    const availableDays = [...new Set(allSales
+      .filter(sale => {
+        if (typeof sale.date !== 'string' || sale.date < today) return false;
+        const weekday = new Date(`${sale.date}T12:00:00`).getDay();
+        return weekday === 0 || weekday === 6;
+      })
+      .map(sale => sale.date))]
+      .sort();
+    const previousDay = routeDayInput.value;
+    routeDayInput.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = availableDays.length ? 'Choose a sale day' : 'No upcoming weekend sales';
+    routeDayInput.append(placeholder);
+    for (const day of availableDays) {
+      const option = document.createElement('option');
+      option.value = day;
+      option.textContent = formatDate(day);
+      routeDayInput.append(option);
+    }
+    routeDayInput.value = availableDays.includes(previousDay)
+      ? previousDay
+      : availableDays[0] || '';
+    for (const saleId of selectedRouteSaleIds) {
+      const sale = allSales.find(item => String(item.id) === saleId);
+      if (!sale || sale.date !== routeDayInput.value) selectedRouteSaleIds.delete(saleId);
+    }
+    updateRouteControls();
+  }
+
+  routeDayInput.addEventListener('change', () => {
+    selectedRouteSaleIds.clear();
+    clearBuiltRoute();
+    updateRouteControls();
+    renderList();
+  });
+
+  routeOriginButton.addEventListener('click', () => {
+    if (!routeDayInput.value) return;
+    selectingRouteOrigin = true;
+    map.getContainer().style.cursor = 'crosshair';
+    updateRouteControls('Click the map where your route should start.');
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || !selectingRouteOrigin) return;
+    selectingRouteOrigin = false;
+    map.getContainer().style.cursor = '';
+    updateRouteControls('Starting point selection canceled.');
+  });
+
+  buildRouteButton.addEventListener('click', async () => {
+    const selectedSales = allSales.filter(sale => selectedRouteSaleIds.has(String(sale.id)));
+    if (!routeOrigin || !selectedSales.length || selectedSales.length > maxRouteStops) {
+      updateRouteControls('Choose a starting point and between 1 and 8 sales.');
+      return;
+    }
+    if (!navigator.onLine) {
+      updateRouteControls('Connect to the internet to request driving directions.');
+      return;
+    }
+    const hasInvalidSaleCoordinates = selectedSales.some(sale => {
+      const latitude = Number(sale.lat);
+      const longitude = Number(sale.lng);
+      return !Number.isFinite(latitude) || latitude < -90 || latitude > 90
+        || !Number.isFinite(longitude) || longitude < -180 || longitude > 180;
+    });
+    if (hasInvalidSaleCoordinates) {
+      updateRouteControls('One or more selected sales have invalid map coordinates.');
+      return;
+    }
+
+    buildRouteButton.disabled = true;
+    routeStatus.textContent = 'Finding a practical driving order…';
+    clearBuiltRoute();
+    const coordinates = [
+      `${routeOrigin.lng},${routeOrigin.lat}`,
+      ...selectedSales.map(sale => `${Number(sale.lng)},${Number(sale.lat)}`)
+    ].join(';');
+    const query = new URLSearchParams({
+      roundtrip: 'false',
+      source: 'first',
+      destination: 'any',
+      overview: 'full',
+      geometries: 'geojson'
+    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(
+        `https://router.project-osrm.org/trip/v1/driving/${coordinates}?${query}`,
+        { signal: controller.signal, referrerPolicy: 'no-referrer' }
+      );
+      if (!response.ok) throw new Error(`Routing service returned status ${response.status}.`);
+      const result = await response.json();
+      if (
+        result.code !== 'Ok'
+        || !Array.isArray(result.trips)
+        || result.trips.length !== 1
+        || !Array.isArray(result.waypoints)
+      ) {
+        throw new Error('The routing service could not connect these locations by road.');
+      }
+      const trip = result.trips[0];
+      const waypointIndices = result.waypoints.map(waypoint => waypoint.waypoint_index);
+      const uniqueWaypointIndices = new Set(waypointIndices);
+      const expectedWaypointIndices = Array.from(
+        { length: result.waypoints.length },
+        (_, index) => index
+      );
+      const orderedStops = result.waypoints
+        .map((waypoint, inputIndex) => ({ waypoint, inputIndex }))
+        .filter(({ inputIndex }) => inputIndex > 0)
+        .sort((first, second) => first.waypoint.waypoint_index - second.waypoint.waypoint_index)
+        .map(({ inputIndex }) => selectedSales[inputIndex - 1]);
+      if (
+        orderedStops.length !== selectedSales.length
+        || waypointIndices.some(index => !Number.isInteger(index) || index < 0 || index >= result.waypoints.length)
+        || uniqueWaypointIndices.size !== result.waypoints.length
+        || expectedWaypointIndices.some(index => !uniqueWaypointIndices.has(index))
+        || !trip.geometry
+        || !Array.isArray(trip.geometry.coordinates)
+        || trip.geometry.coordinates.length < 2
+        || !Number.isFinite(trip.distance)
+        || !Number.isFinite(trip.duration)
+      ) {
+        throw new Error('The routing service returned an incomplete route.');
+      }
+
+      routeLine = L.geoJSON(trip.geometry, {
+        style: { color: '#c66d22', weight: 5, opacity: .85 }
+      }).addTo(map);
+      routeSummary.textContent =
+        `${orderedStops.length} ${orderedStops.length === 1 ? 'stop' : 'stops'} · ${(trip.distance / 1000).toFixed(1)} km · ${Math.round(trip.duration / 60)} min driving`;
+      routeItinerary.replaceChildren();
+      const start = document.createElement('li');
+      start.textContent = 'Start at your chosen map point';
+      routeItinerary.append(start);
+      for (const sale of orderedStops) {
+        const stop = document.createElement('li');
+        stop.textContent = `${formatDate(sale.date)} · ${sale.title}`;
+        routeItinerary.append(stop);
+      }
+      const destination = orderedStops[orderedStops.length - 1];
+      const waypointSales = orderedStops.slice(0, -1);
+      const directionsQuery = new URLSearchParams({
+        api: '1',
+        origin: `${routeOrigin.lat},${routeOrigin.lng}`,
+        destination: `${destination.lat},${destination.lng}`,
+        travelmode: 'driving'
+      });
+      if (waypointSales.length) {
+        directionsQuery.set(
+          'waypoints',
+          waypointSales.map(sale => `${sale.lat},${sale.lng}`).join('|')
+        );
+      }
+      routeDirections.href = `https://www.google.com/maps/dir/?${directionsQuery}`;
+      routeResult.hidden = false;
+      map.fitBounds(routeLine.getBounds().pad(0.15));
+      updateRouteControls('Route ready. Time is an estimate without live traffic; confirm sale hours before you go.');
+    } catch (error) {
+      const message = error.name === 'AbortError'
+        ? 'The routing request timed out. Try again in a moment.'
+        : error.message || 'Could not build the driving route.';
+      updateRouteControls(message);
+    } finally {
+      window.clearTimeout(timeout);
+      buildRouteButton.disabled = !routeDayInput.value || !routeOrigin || !selectedRouteSaleIds.size;
+    }
+  });
 
   document.getElementById('locate-me').addEventListener('click', () => {
     if (!navigator.geolocation) {
@@ -1573,6 +1859,22 @@
 
   // ── CLICK MAP ──
   map.on('click', function(e) {
+    if (selectingRouteOrigin) {
+      routeOrigin = e.latlng;
+      selectingRouteOrigin = false;
+      map.getContainer().style.cursor = '';
+      if (routeOriginMarker) map.removeLayer(routeOriginMarker);
+      routeOriginMarker = L.circleMarker(routeOrigin, {
+        radius: 8,
+        color: '#ffffff',
+        weight: 3,
+        fillColor: '#327354',
+        fillOpacity: 1
+      }).addTo(map).bindTooltip('Route start');
+      clearBuiltRoute();
+      updateRouteControls(`Starting point set at ${routeOrigin.lat.toFixed(4)}, ${routeOrigin.lng.toFixed(4)}.`);
+      return;
+    }
     pendingLatLng = e.latlng;
     if (pendingMarker) map.removeLayer(pendingMarker);
     pendingMarker = L.marker([e.latlng.lat, e.latlng.lng], {
@@ -1713,6 +2015,9 @@
   function renderSales(sales) {
     markerLayer.clearLayers();
     markers.clear();
+    const previousSelectionCount = selectedRouteSaleIds.size;
+    updateRouteDays();
+    if (selectedRouteSaleIds.size !== previousSelectionCount) clearBuiltRoute();
     syncVisibleMarkers();
     filterAndRenderSales();
   }
@@ -1778,23 +2083,54 @@
     }
 
     const visibleSales = filteredSales.slice(0, visibleSalesCount);
-    container.innerHTML = visibleSales.map(sale => `
-      <div class="sale-card" role="button" tabindex="0" aria-label="${escAttr(`${sale.title}, ${formatDate(sale.date)}. Select to view on map.`)}" onclick="focusSale(${sale.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();focusSale(${sale.id})}">
-        ${sale.user_email === currentUserEmail ? `
-          <button class="btn-delete" onclick="event.stopPropagation(); deleteSale(${sale.id})">×</button>
-        ` : ''}
-        <div class="sale-card-title">${escHtml(sale.title)}</div>
-        <div class="sale-card-date">${formatDate(sale.date)}</div>
-        ${sale.user_name ? `
-          <div class="sale-card-user">
-            ${sale.user_picture ? `<img src="${sale.user_picture}" alt="">` : ''}
-            ${escHtml(sale.user_name)}
-          </div>` : ''}
-        ${sale.description
-          ? `<div class="sale-card-desc">${escHtml(sale.description)}</div>`
-          : ''}
-      </div>
-    `).join('');
+    container.innerHTML = visibleSales.map(sale => {
+      const isSelected = selectedRouteSaleIds.has(String(sale.id));
+      const canAddToRoute = sale.date === routeDayInput.value;
+      return `
+        <article class="sale-card">
+          <button class="sale-card-focus" type="button" aria-label="${escAttr(`${sale.title}, ${formatDate(sale.date)}. Select to view on map.`)}" onclick="focusSale(${sale.id})">
+            <div class="sale-card-title">${escHtml(sale.title)}</div>
+            <div class="sale-card-date">${formatDate(sale.date)}</div>
+            ${sale.user_name ? `
+              <div class="sale-card-user">
+                ${sale.user_picture ? `<img src="${escAttr(sale.user_picture)}" alt="">` : ''}
+                ${escHtml(sale.user_name)}
+              </div>` : ''}
+            ${sale.description
+              ? `<div class="sale-card-desc">${escHtml(sale.description)}</div>`
+              : ''}
+          </button>
+          <div class="sale-card-actions">
+            ${canAddToRoute ? `
+              <button class="route-stop-toggle" type="button" data-route-sale="${escAttr(sale.id)}" aria-pressed="${isSelected}" ${!isSelected && selectedRouteSaleIds.size >= maxRouteStops ? 'disabled' : ''}>
+                ${isSelected ? 'Remove stop' : 'Add to route'}
+              </button>` : '<span></span>'}
+            ${currentUserEmail && sale.user_email === currentUserEmail
+              ? `<button class="btn-delete" type="button" data-delete-sale="${escAttr(sale.id)}" aria-label="Delete ${escAttr(sale.title)}">Remove</button>`
+              : ''}
+          </div>
+        </article>
+      `;
+    }).join('');
+    container.querySelectorAll('.route-stop-toggle').forEach(button => {
+      button.addEventListener('click', () => {
+        const saleId = button.dataset.routeSale;
+        if (selectedRouteSaleIds.has(saleId)) {
+          selectedRouteSaleIds.delete(saleId);
+        } else if (selectedRouteSaleIds.size < maxRouteStops) {
+          selectedRouteSaleIds.add(saleId);
+        } else {
+          updateRouteControls('A route can include up to 8 sale stops.');
+          return;
+        }
+        clearBuiltRoute();
+        updateRouteControls();
+        renderList();
+      });
+    });
+    container.querySelectorAll('[data-delete-sale]').forEach(button => {
+      button.addEventListener('click', () => deleteSale(button.dataset.deleteSale));
+    });
     if (visibleSales.length < filteredSales.length) {
       const remaining = filteredSales.length - visibleSales.length;
       container.insertAdjacentHTML('beforeend',
@@ -1909,11 +2245,15 @@
             <a href="/logout" class="btn-logout">Sign out</a>
           </div>`;
       } else {
+        currentUserEmail = null;
         area.innerHTML = `<a href="/login" class="btn-login">Sign in with Google</a>`;
       }
+      filterAndRenderSales();
     } catch(e) {
+      currentUserEmail = null;
       document.getElementById('auth-area').innerHTML =
         `<a href="/login" class="btn-login">Sign in with Google</a>`;
+      filterAndRenderSales();
     }
   }
 
