@@ -2,8 +2,9 @@ import os
 import sys
 import sqlite3
 import threading
+import json
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import wraps
 from urllib.parse import urlsplit
 
@@ -23,7 +24,12 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-USE_SQLITE = not DATABASE_URL or psycopg2 is None
+if DATABASE_URL and psycopg2 is None:
+    raise RuntimeError(
+        "DATABASE_URL is configured, but the PostgreSQL driver is unavailable. "
+        "Install psycopg2-binary instead of silently falling back to SQLite."
+    )
+USE_SQLITE = not DATABASE_URL
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "devarshp610@gmail.com").strip().casefold()
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "garage_sale_finder.db")
 scrape_lock = threading.Lock()
@@ -39,16 +45,20 @@ google = oauth.register(
 )
 
 def get_db():
-    if USE_SQLITE or psycopg2 is None:
+    if USE_SQLITE:
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
+    if psycopg2 is None:
+        raise RuntimeError(
+            "PostgreSQL was selected, but the PostgreSQL driver is unavailable."
+        )
     return psycopg2.connect(
         DATABASE_URL,
         cursor_factory=RealDictCursor
     )
 
-def init_db():
+def init_db(mark_stale_scrapes=True):
     conn = get_db()
     cur = conn.cursor()
     if USE_SQLITE:
@@ -96,9 +106,10 @@ def init_db():
             cur.execute("ALTER TABLE sales ADD COLUMN source_name TEXT")
         if "source_url" not in columns:
             cur.execute("ALTER TABLE sales ADD COLUMN source_url TEXT")
-        cur.execute(
-            "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
-        )
+        if mark_stale_scrapes:
+            cur.execute(
+                "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
+            )
     else:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS sales (
@@ -134,9 +145,10 @@ def init_db():
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'location'")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS total_steps INTEGER NOT NULL DEFAULT 1")
-        cur.execute(
-            "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
-        )
+        if mark_stale_scrapes:
+            cur.execute(
+                "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
+            )
     conn.commit()
     cur.close()
     conn.close()
@@ -297,7 +309,12 @@ def admin():
         return redirect(url_for("login"))
     if not is_admin(user):
         return "Admin access required", 403
-    return render_template("admin.html", user=user)
+    database_backend = "PostgreSQL" if not USE_SQLITE else "SQLite"
+    return render_template(
+        "admin.html",
+        user=user,
+        database_backend=database_backend,
+    )
 
 
 @app.route("/api/admin/scrapes")
@@ -310,6 +327,43 @@ def admin_scrapes():
     cur.close()
     conn.close()
     return jsonify(jobs)
+
+
+@app.route("/api/admin/backup")
+@admin_required
+def download_database_backup():
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM sales ORDER BY id")
+        sales = [dict(row) for row in cur.fetchall()]
+        cur.execute("SELECT * FROM scrape_jobs ORDER BY id")
+        scrape_jobs = [dict(row) for row in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+    generated_at = datetime.now(timezone.utc)
+    backup = {
+        "format": "yardscout-json-backup",
+        "format_version": 1,
+        "generated_at": generated_at.isoformat(),
+        "tables": {
+            "sales": sales,
+            "scrape_jobs": scrape_jobs,
+        },
+    }
+    payload = json.dumps(
+        backup,
+        indent=2,
+        default=lambda value: value.isoformat() if isinstance(value, (date, datetime)) else str(value),
+    )
+    response = app.response_class(payload, mimetype="application/json")
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="yardscout-backup-{generated_at:%Y%m%dT%H%M%SZ}.json"'
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.route("/api/admin/location-suggestions")
@@ -802,8 +856,9 @@ def delete_sale(sale_id):
     conn.close()
     return jsonify({"message": "Deleted!"})
 
-with app.app_context():
-    init_db()
+if os.environ.get("YARDSCOUT_SKIP_DB_INIT") != "1":
+    with app.app_context():
+        init_db()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
