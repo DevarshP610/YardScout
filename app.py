@@ -3,8 +3,10 @@ import sys
 import sqlite3
 import threading
 import json
+import smtplib
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
+from email.message import EmailMessage
 from functools import wraps
 from urllib.parse import urlsplit
 
@@ -33,6 +35,11 @@ USE_SQLITE = not DATABASE_URL
 SALE_RETENTION_DAYS = 7
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "devarshp610@gmail.com").strip().casefold()
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "garage_sale_finder.db")
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USERNAME).strip()
 scrape_lock = threading.Lock()
 
 oauth = OAuth(app)
@@ -107,6 +114,27 @@ def init_db(mark_stale_scrapes=True):
             cur.execute("ALTER TABLE sales ADD COLUMN source_name TEXT")
         if "source_url" not in columns:
             cur.execute("ALTER TABLE sales ADD COLUMN source_url TEXT")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS creator_follows (
+                follower_email TEXT NOT NULL,
+                creator_email TEXT NOT NULL,
+                creator_name TEXT,
+                creator_picture TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (follower_email, creator_email)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipient_email TEXT NOT NULL,
+                creator_email TEXT NOT NULL,
+                sale_id INTEGER,
+                message TEXT NOT NULL,
+                read_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         if mark_stale_scrapes:
             cur.execute(
                 "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
@@ -143,6 +171,27 @@ def init_db(mark_stale_scrapes=True):
         """)
         cur.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS source_name TEXT")
         cur.execute("ALTER TABLE sales ADD COLUMN IF NOT EXISTS source_url TEXT")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS creator_follows (
+                follower_email TEXT NOT NULL,
+                creator_email TEXT NOT NULL,
+                creator_name TEXT,
+                creator_picture TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (follower_email, creator_email)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                recipient_email TEXT NOT NULL,
+                creator_email TEXT NOT NULL,
+                sale_id INTEGER,
+                message TEXT NOT NULL,
+                read_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'location'")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS total_steps INTEGER NOT NULL DEFAULT 1")
@@ -167,6 +216,75 @@ def row_as_dict(row):
     if isinstance(row, Mapping):
         return dict(row)
     raise TypeError(f"Unsupported database row type: {type(row).__name__}")
+
+
+def normalized_email(value):
+    return value.strip().casefold() if isinstance(value, str) else ""
+
+
+def email_notifications_enabled():
+    return bool(SMTP_HOST and SMTP_FROM)
+
+
+def send_notification_email(recipient, subject, body):
+    if not email_notifications_enabled():
+        return
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = SMTP_FROM
+    message["To"] = recipient
+    message.set_content(body)
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+        server.starttls()
+        if SMTP_USERNAME:
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.send_message(message)
+
+
+def notify_creator_followers(sale):
+    creator_email = normalized_email(sale.get("user_email"))
+    if not creator_email:
+        return
+    conn = get_db()
+    cur = conn.cursor()
+    placeholder = "?" if USE_SQLITE else "%s"
+    cur.execute(
+        f"SELECT follower_email FROM creator_follows WHERE creator_email = {placeholder}",
+        (creator_email,),
+    )
+    recipients = [row_as_dict(row)["follower_email"] for row in cur.fetchall()]
+    message = f"{sale.get('user_name') or 'A creator you follow'} posted a new garage sale: {sale['title']}."
+    for recipient in recipients:
+        if USE_SQLITE:
+            cur.execute(
+                """
+                INSERT INTO notifications
+                    (recipient_email, creator_email, sale_id, message)
+                VALUES (?, ?, ?, ?)
+                """,
+                (recipient, creator_email, sale["id"], message),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO notifications
+                    (recipient_email, creator_email, sale_id, message)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (recipient, creator_email, sale["id"], message),
+            )
+    conn.commit()
+    cur.close()
+    conn.close()
+    for recipient in recipients:
+        try:
+            send_notification_email(
+                recipient,
+                "A creator you follow posted on YardScout",
+                f"{message}\n\nView YardScout: https://yardscout.me",
+            )
+        except (OSError, smtplib.SMTPException) as exc:
+            print(f"Notification email to {recipient} failed: {exc}", file=sys.stderr)
 
 
 def admin_required(view):
@@ -307,6 +425,144 @@ def me():
     if user:
         user = {**user, "is_admin": is_admin(user)}
     return jsonify(user)
+
+
+@app.route("/api/follows", methods=["GET", "POST"])
+def follows():
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    follower_email = normalized_email(user.get("email"))
+    conn = get_db()
+    cur = conn.cursor()
+    placeholder = "?" if USE_SQLITE else "%s"
+    if request.method == "POST":
+        data = request.get_json(silent=True)
+        creator_email = normalized_email(data.get("creator_email") if isinstance(data, dict) else None)
+        if not creator_email or creator_email == follower_email:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Choose a different signed-in creator to follow."}), 400
+        creator_name = data.get("creator_name", "") if isinstance(data, dict) else ""
+        creator_picture = data.get("creator_picture", "") if isinstance(data, dict) else ""
+        if not isinstance(creator_name, str) or not isinstance(creator_picture, str):
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Creator details must be text."}), 400
+        if USE_SQLITE:
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO creator_follows
+                    (follower_email, creator_email, creator_name, creator_picture)
+                VALUES (?, ?, ?, ?)
+                """,
+                (follower_email, creator_email, creator_name.strip(), creator_picture.strip()),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO creator_follows
+                    (follower_email, creator_email, creator_name, creator_picture)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (follower_email, creator_email) DO UPDATE SET
+                    creator_name = EXCLUDED.creator_name,
+                    creator_picture = EXCLUDED.creator_picture
+                """,
+                (follower_email, creator_email, creator_name.strip(), creator_picture.strip()),
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"following": True, "creator_email": creator_email}), 201
+    cur.execute(
+        f"""
+        SELECT creator_email, creator_name, creator_picture
+        FROM creator_follows
+        WHERE follower_email = {placeholder}
+        ORDER BY created_at DESC
+        """,
+        (follower_email,),
+    )
+    result = [row_as_dict(row) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify(result)
+
+
+@app.route("/api/follows/<path:creator_email>", methods=["DELETE"])
+def unfollow_creator(creator_email):
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    conn = get_db()
+    cur = conn.cursor()
+    if USE_SQLITE:
+        cur.execute(
+            "DELETE FROM creator_follows WHERE follower_email = ? AND creator_email = ?",
+            (normalized_email(user.get("email")), normalized_email(creator_email)),
+        )
+    else:
+        cur.execute(
+            "DELETE FROM creator_follows WHERE follower_email = %s AND creator_email = %s",
+            (normalized_email(user.get("email")), normalized_email(creator_email)),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"following": False})
+
+
+@app.route("/api/notifications")
+def notifications():
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    conn = get_db()
+    cur = conn.cursor()
+    placeholder = "?" if USE_SQLITE else "%s"
+    cur.execute(
+        f"""
+        SELECT id, creator_email, sale_id, message, read_at, created_at
+        FROM notifications
+        WHERE recipient_email = {placeholder}
+        ORDER BY id DESC
+        LIMIT 50
+        """,
+        (normalized_email(user.get("email")),),
+    )
+    result = [row_as_dict(row) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify(result)
+
+
+@app.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+def mark_notification_read(notification_id):
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    conn = get_db()
+    cur = conn.cursor()
+    if USE_SQLITE:
+        cur.execute(
+            """
+            UPDATE notifications SET read_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND recipient_email = ?
+            """,
+            (notification_id, normalized_email(user.get("email"))),
+        )
+    else:
+        cur.execute(
+            """
+            UPDATE notifications SET read_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND recipient_email = %s
+            """,
+            (notification_id, normalized_email(user.get("email"))),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"read": True})
 
 
 @app.route("/admin")
@@ -839,6 +1095,7 @@ def add_sale():
     conn.commit()
     cur.close()
     conn.close()
+    notify_creator_followers(new_sale)
     return jsonify(new_sale), 201
 
 @app.route("/api/scrape", methods=["POST"])

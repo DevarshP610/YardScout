@@ -3,13 +3,13 @@
   <p><strong>Find a good one.</strong><br>Discover neighborhood garage sales and plan a better Saturday.</p>
 
   <p>
-    <a href="https://yardscout.onrender.com"><img src="https://img.shields.io/badge/Live%20site-YardScout-c87624" alt="Visit YardScout"></a>
+    <a href="https://yardscout.me"><img src="https://img.shields.io/badge/Live%20site-YardScout-c87624" alt="Visit YardScout"></a>
     <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white" alt="Python 3.12">
     <img src="https://img.shields.io/badge/Flask-app-black?logo=flask&logoColor=white" alt="Built with Flask">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-green" alt="PolyForm Noncommercial License"></a>
   </p>
 
-  <a href="https://yardscout.onrender.com">
+  <a href="https://yardscout.me">
     <img src="./YardScoutThumbNail.jpg" alt="YardScout map and garage-sale listings" width="800">
   </a>
 </div>
@@ -24,13 +24,14 @@
 
 YardScout helps people find nearby garage sales, browse them on a map, and plan a route between stops. It also includes a separate admin area for reviewing listings and running the supported scrapers.
 
-**[Open the live site](https://yardscout.onrender.com)** · **[See the roadmap](./ROADMAP.md)** · **[Read the license](./LICENSE)**
+**[Open the live site](https://yardscout.me)** · **[See the roadmap](./ROADMAP.md)** · **[Read the license](./LICENSE)**
 
 ## Features
 
 - **Find sales:** Browse map pins and listings, search nearby, and open a sale for details.
 - **Plan a route:** Choose a weekend date, add up to eight sales, pick a starting point, and get an estimated driving order. Open the stops in Google Maps for directions.
 - **Post a listing:** Add a sale location, date, title, and description.
+- **Follow creators:** Follow a signed-in listing creator and receive an immediate in-app notification when they post a new sale. Optional SMTP settings can also deliver the notification by email.
 - **Admin tools:** Review listings, add sales, extract text from screenshots, run supported scrapers, check scan progress, and download a private data backup.
 - **Automatic cleanup:** Listings are removed after the sale date has passed by seven days.
 
@@ -71,6 +72,8 @@ python app.py
 ```
 
 Open <http://127.0.0.1:8080>. Local development uses SQLite by default. Set `DATABASE_URL` to use PostgreSQL; set `TICKETMASTER_API_KEY` to enable the optional Ticketmaster lookup.
+
+To enable immediate email notifications for followed creators, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM`. Leave these unset to use in-app notifications only. Browser push notifications are planned separately and are not enabled by these settings.
 
 ## Hosting and data safety
 

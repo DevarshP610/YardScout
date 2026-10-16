@@ -68,6 +68,41 @@ class AdminScrapeTests(unittest.TestCase):
         remaining_titles = {sale["title"] for sale in response.get_json()}
         self.assertEqual(remaining_titles, {"Still recent", "Upcoming in a month"})
 
+    def test_followed_creator_receives_immediate_notification(self):
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "follower@example.test"}
+        response = self.client.post(
+            "/api/follows",
+            json={
+                "creator_email": "creator@example.test",
+                "creator_name": "Creator",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "creator@example.test", "name": "Creator"}
+        response = self.client.post(
+            "/api/sales",
+            json={
+                "title": "Creator's Saturday sale",
+                "date": "2099-06-05",
+                "description": "New items",
+                "lat": 49.8,
+                "lng": -99.9,
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "follower@example.test"}
+        response = self.client.get("/api/notifications")
+        self.assertEqual(response.status_code, 200)
+        notifications = response.get_json()
+        self.assertEqual(len(notifications), 1)
+        self.assertIn("Creator posted", notifications[0]["message"])
+        self.assertIsNone(notifications[0]["read_at"])
+
     def test_starting_regional_scan_is_admin_only_and_persists_job(self):
         with patch.object(app.threading.Thread, "start", autospec=True):
             response = self.client.post(

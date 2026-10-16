@@ -183,6 +183,15 @@
     .utility-button:hover { background: var(--surface-soft); border-color: #c7c7c9; }
     .utility-button:active { transform: scale(.97); }
     .utility-button svg { width: 17px; height: 17px; }
+    .notification-menu { position: relative; }
+    .notification-menu summary { list-style: none; }
+    .notification-menu summary::-webkit-details-marker { display: none; }
+    .notification-button { position: relative; }
+    .notification-count { position: absolute; top: -5px; right: -5px; min-width: 16px; padding: 2px 4px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; line-height: 1.1; text-align: center; }
+    .notification-list { position: absolute; top: calc(100% + 8px); right: 0; z-index: 1100; width: min(330px, calc(100vw - 32px)); padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); }
+    .notification-item { display: block; width: 100%; padding: 9px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+    .notification-item:hover, .notification-item.unread { background: var(--accent-soft); }
+    .notification-empty { padding: 10px; color: var(--muted); font-size: 12px; }
 
     .command-hint {
       padding: 2px 5px;
@@ -1152,6 +1161,14 @@
   </div>
   <div class="header-right">
     <span id="sale-count-badge">0 Sales</span>
+    <details class="notification-menu" id="notification-menu" hidden>
+      <summary class="utility-button notification-button" aria-label="Open notifications" title="Notifications">
+        <span aria-hidden="true">🔔</span><span class="notification-count" id="notification-count" hidden>0</span>
+      </summary>
+      <div class="notification-list" id="notification-list" role="status">
+        <div class="notification-empty">No notifications yet.</div>
+      </div>
+    </details>
     <button class="utility-button command-open" id="command-open" type="button" aria-label="Open quick actions" title="Quick actions (Ctrl or Command + K)">
       <span>Quick actions</span><kbd class="command-hint">⌘ K</kbd>
     </button>
@@ -1564,6 +1581,8 @@
   let filteredSales    = [];
   let visibleSalesCount = listingPageSize;
   let currentUserEmail = null;
+  const followedCreatorEmails = new Set();
+  let notifications = [];
   const routeDayInput = document.getElementById('route-day');
   const routeOriginButton = document.getElementById('route-origin-button');
   const buildRouteButton = document.getElementById('build-route-button');
@@ -1975,6 +1994,77 @@
     }
   }
 
+  async function toggleCreatorFollow(button) {
+    const creatorEmail = button.dataset.followCreator;
+    const following = button.getAttribute('aria-pressed') === 'true';
+    const url = following
+      ? `/api/follows/${encodeURIComponent(creatorEmail)}`
+      : '/api/follows';
+    const options = following
+      ? { method: 'DELETE' }
+      : {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            creator_email: creatorEmail,
+            creator_name: button.dataset.creatorName || '',
+            creator_picture: button.dataset.creatorPicture || ''
+          })
+        };
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      showToast(result.error || 'Could not update followed creators.');
+      return;
+    }
+    if (following) followedCreatorEmails.delete(creatorEmail);
+    else followedCreatorEmails.add(creatorEmail);
+    renderList();
+    showToast(following ? 'Creator unfollowed.' : 'Creator followed. You’ll be notified about new sales.');
+  }
+
+  function renderNotifications() {
+    const list = document.getElementById('notification-list');
+    const count = document.getElementById('notification-count');
+    const unread = notifications.filter(item => !item.read_at).length;
+    count.textContent = unread;
+    count.hidden = unread === 0;
+    if (!notifications.length) {
+      list.innerHTML = '<div class="notification-empty">No notifications yet.</div>';
+      return;
+    }
+    list.innerHTML = notifications.map(item => `
+      <button class="notification-item ${item.read_at ? '' : 'unread'}" type="button" data-notification-id="${item.id}">
+        ${escHtml(item.message)}
+      </button>
+    `).join('');
+    list.querySelectorAll('[data-notification-id]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const response = await fetch(`/api/notifications/${button.dataset.notificationId}/read`, { method: 'POST' });
+        if (response.ok) {
+          const item = notifications.find(notification => String(notification.id) === button.dataset.notificationId);
+          if (item) item.read_at = new Date().toISOString();
+          renderNotifications();
+        }
+      });
+    });
+  }
+
+  async function loadFollowedCreators() {
+    const response = await fetch('/api/follows');
+    if (!response.ok) return;
+    const creators = await response.json();
+    followedCreatorEmails.clear();
+    creators.forEach(creator => followedCreatorEmails.add(creator.creator_email));
+  }
+
+  async function loadNotifications() {
+    const response = await fetch('/api/notifications');
+    if (!response.ok) return;
+    notifications = await response.json();
+    renderNotifications();
+  }
+
   // ── LOAD SALES ──
   async function loadSales() {
     try {
@@ -2086,6 +2176,10 @@
     container.innerHTML = visibleSales.map(sale => {
       const isSelected = selectedRouteSaleIds.has(String(sale.id));
       const canAddToRoute = sale.date === routeDayInput.value;
+      const creatorEmail = sale.user_email ? String(sale.user_email).trim().toLowerCase() : '';
+      const canFollowCreator = currentUserEmail && creatorEmail
+        && creatorEmail !== currentUserEmail.trim().toLowerCase();
+      const isFollowingCreator = canFollowCreator && followedCreatorEmails.has(creatorEmail);
       return `
         <article class="sale-card">
           <button class="sale-card-focus" type="button" aria-label="${escAttr(`${sale.title}, ${formatDate(sale.date)}. Select to view on map.`)}" onclick="focusSale(${sale.id})">
@@ -2104,6 +2198,10 @@
             ${canAddToRoute ? `
               <button class="route-stop-toggle" type="button" data-route-sale="${escAttr(sale.id)}" aria-pressed="${isSelected}" ${!isSelected && selectedRouteSaleIds.size >= maxRouteStops ? 'disabled' : ''}>
                 ${isSelected ? 'Remove stop' : 'Add to route'}
+              </button>` : ''}
+            ${canFollowCreator ? `
+              <button class="route-stop-toggle follow-creator-toggle" type="button" data-follow-creator="${escAttr(creatorEmail)}" data-creator-name="${escAttr(sale.user_name || '')}" data-creator-picture="${escAttr(sale.user_picture || '')}" aria-pressed="${isFollowingCreator}">
+                ${isFollowingCreator ? 'Following creator' : 'Follow creator'}
               </button>` : '<span></span>'}
             ${currentUserEmail && sale.user_email === currentUserEmail
               ? `<button class="btn-delete" type="button" data-delete-sale="${escAttr(sale.id)}" aria-label="Delete ${escAttr(sale.title)}">Remove</button>`
@@ -2114,6 +2212,7 @@
     }).join('');
     container.querySelectorAll('.route-stop-toggle').forEach(button => {
       button.addEventListener('click', () => {
+        if (button.dataset.followCreator) return;
         const saleId = button.dataset.routeSale;
         if (selectedRouteSaleIds.has(saleId)) {
           selectedRouteSaleIds.delete(saleId);
@@ -2127,6 +2226,9 @@
         updateRouteControls();
         renderList();
       });
+    });
+    container.querySelectorAll('[data-follow-creator]').forEach(button => {
+      button.addEventListener('click', () => toggleCreatorFollow(button));
     });
     container.querySelectorAll('[data-delete-sale]').forEach(button => {
       button.addEventListener('click', () => deleteSale(button.dataset.deleteSale));
@@ -2237,6 +2339,7 @@
       const area = document.getElementById('auth-area');
       if (user && user.email) {
         currentUserEmail = user.email;
+        document.getElementById('notification-menu').hidden = false;
         area.innerHTML = `
           <div class="user-pill">
             <img class="user-avatar" src="${user.picture}" alt="${user.name}">
@@ -2244,13 +2347,16 @@
             ${user.is_admin ? '<a href="/admin" class="btn-logout">Admin</a>' : ''}
             <a href="/logout" class="btn-logout">Sign out</a>
           </div>`;
+        await Promise.all([loadFollowedCreators(), loadNotifications()]);
       } else {
         currentUserEmail = null;
+        document.getElementById('notification-menu').hidden = true;
         area.innerHTML = `<a href="/login" class="btn-login">Sign in with Google</a>`;
       }
       filterAndRenderSales();
     } catch(e) {
       currentUserEmail = null;
+      document.getElementById('notification-menu').hidden = true;
       document.getElementById('auth-area').innerHTML =
         `<a href="/login" class="btn-login">Sign in with Google</a>`;
       filterAndRenderSales();
