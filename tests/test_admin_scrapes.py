@@ -70,6 +70,21 @@ class AdminScrapeTests(unittest.TestCase):
         remaining_titles = {sale["title"] for sale in response.get_json()}
         self.assertEqual(remaining_titles, {"Still recent", "Upcoming in a month"})
 
+    def test_pwa_assets_are_available(self):
+        manifest = self.client.get("/static/manifest.webmanifest")
+        icon = self.client.get("/static/yardscout-icon.svg")
+        service_worker = self.client.get("/static/service-worker.js")
+
+        self.assertEqual(manifest.status_code, 200)
+        self.assertEqual(manifest.json["short_name"], "YardScout")
+        self.assertEqual(icon.status_code, 200)
+        self.assertIn("<svg", icon.get_data(as_text=True))
+        self.assertEqual(service_worker.status_code, 200)
+        self.assertIn("yardscout-shell-v1", service_worker.get_data(as_text=True))
+        manifest.close()
+        icon.close()
+        service_worker.close()
+
     def test_followed_creator_receives_immediate_notification(self):
         with self.client.session_transaction() as session:
             session["user"] = {"email": "follower@example.test"}

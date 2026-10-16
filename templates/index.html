@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1A1206">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="YardScout">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/yardscout-icon.svg">
   <title>YardScout | Find a garage sale near you</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
@@ -2361,6 +2367,13 @@
         `<a href="/login" class="btn-login">Sign in with Google</a>`;
       filterAndRenderSales();
     }
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/static/service-worker.js', { scope: '/' })
+        .catch(error => console.warn('YardScout offline support is unavailable:', error));
+    });
   }
 
   // ── HELPERS ──

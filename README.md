@@ -32,6 +32,7 @@ YardScout helps people find nearby garage sales, browse them on a map, and plan 
 - **Plan a route:** Choose a weekend date, add up to eight sales, pick a starting point, and get an estimated driving order. Open the stops in Google Maps for directions.
 - **Post a listing:** Add a sale location, date, title, and description.
 - **Follow creators:** Follow a signed-in listing creator and receive an immediate in-app notification when they post a new sale. Optional SMTP settings can also deliver the notification by email.
+- **Install on iPhone:** Add YardScout to your iPhone Home Screen from Safari for an app-like experience. The PWA shell uses network-first loading and does not cache private API responses.
 - **Admin tools:** Review listings, add sales, extract text from screenshots, run supported scrapers, check scan progress, and download a private data backup.
 - **Automatic cleanup:** Listings are removed after the sale date has passed by seven days.
 
