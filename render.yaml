@@ -9,6 +9,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
+      - key: APP_ENV
+        value: production
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_EMAIL

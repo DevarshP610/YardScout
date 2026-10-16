@@ -3,6 +3,7 @@ import sys
 import sqlite3
 import threading
 import json
+import secrets
 import smtplib
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
@@ -23,7 +24,18 @@ from flask import Flask, render_template, jsonify, request, redirect, url_for, s
 from authlib.integrations.flask_client import OAuth
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key")
+APP_ENV = os.environ.get("APP_ENV", "production").strip().casefold()
+SECRET_KEY = os.environ.get("SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if APP_ENV == "development":
+        SECRET_KEY = secrets.token_urlsafe(32)
+    else:
+        raise RuntimeError(
+            "SECRET_KEY must be configured with a strong random value outside development."
+        )
+if len(SECRET_KEY) < 32 and APP_ENV not in {"development", "test"}:
+    raise RuntimeError("SECRET_KEY must be at least 32 characters outside development.")
+app.secret_key = SECRET_KEY
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL and psycopg2 is None:

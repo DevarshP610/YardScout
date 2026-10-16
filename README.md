@@ -65,6 +65,7 @@ Set the required app and Google OAuth values in your PowerShell session. Registe
 
 ```powershell
 $env:SECRET_KEY = "replace-with-a-random-secret"
+$env:APP_ENV = "development"
 $env:ADMIN_EMAIL = "you@example.com"
 $env:GOOGLE_CLIENT_ID = "your-client-id"
 $env:GOOGLE_CLIENT_SECRET = "your-client-secret"

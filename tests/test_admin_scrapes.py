@@ -9,6 +9,8 @@ _IMPORT_DATABASE = tempfile.TemporaryDirectory(prefix="yardscout-test-import-")
 _ORIGINAL_DATABASE_PATH = os.environ.get("DATABASE_PATH")
 _ORIGINAL_DATABASE_URL = os.environ.pop("DATABASE_URL", None)
 os.environ["DATABASE_PATH"] = os.path.join(_IMPORT_DATABASE.name, "import.sqlite")
+os.environ["APP_ENV"] = "test"
+os.environ["SECRET_KEY"] = "test-secret-key-for-yardscout-tests-only-123456"
 
 import app
 import scraper
