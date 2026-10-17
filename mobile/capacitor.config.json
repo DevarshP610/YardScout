@@ -1,0 +1,9 @@
+{
+  "appId": "me.yardscout.app",
+  "appName": "YardScout",
+  "webDir": "web",
+  "server": {
+    "url": "https://yardscout.me",
+    "cleartext": false
+  }
+}
