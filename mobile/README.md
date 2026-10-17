@@ -7,7 +7,7 @@ the PWA share the same backend, login, listings, routes, and notifications.
 ## Requirements
 
 - Android Studio with an Android SDK and emulator or physical device
-- JDK 17
+- JDK 21
 - Node.js 20 or newer
 
 ## Setup
