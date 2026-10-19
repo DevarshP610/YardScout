@@ -46,6 +46,11 @@ class AdminScrapeTests(unittest.TestCase):
         if app.scrape_lock.locked():
             app.scrape_lock.release()
 
+    def test_session_cookie_security_settings_are_enabled(self):
+        self.assertTrue(app.app.config["SESSION_COOKIE_HTTPONLY"])
+        self.assertEqual(app.app.config["SESSION_COOKIE_SAMESITE"], "Lax")
+        self.assertFalse(app.app.config["SESSION_COOKIE_SECURE"])
+
     def test_loading_sales_removes_listings_seven_days_after_sale(self):
         conn = self._connect()
         for title, days_ago in (

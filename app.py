@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover - fallback when Postgres driver is unava
 
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 from authlib.integrations.flask_client import OAuth
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 APP_ENV = os.environ.get("APP_ENV", "production").strip().casefold()
@@ -36,6 +37,14 @@ if not SECRET_KEY:
 if len(SECRET_KEY) < 32 and APP_ENV not in {"development", "test"}:
     raise RuntimeError("SECRET_KEY must be at least 32 characters outside development.")
 app.secret_key = SECRET_KEY
+PRODUCTION_MODE = APP_ENV not in {"development", "test"}
+app.config.update(
+    SESSION_COOKIE_SECURE=PRODUCTION_MODE,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+if PRODUCTION_MODE:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL and psycopg2 is None:
@@ -53,6 +62,23 @@ SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USERNAME).strip()
 scrape_lock = threading.Lock()
+
+
+@app.before_request
+def enforce_https():
+    if not PRODUCTION_MODE or request.is_secure:
+        return None
+    return redirect(request.url.replace("http://", "https://", 1), code=308)
+
+
+@app.after_request
+def add_security_headers(response):
+    if PRODUCTION_MODE and request.is_secure:
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )
+    return response
 
 oauth = OAuth(app)
 
