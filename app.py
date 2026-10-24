@@ -42,6 +42,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=PRODUCTION_MODE,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    MAX_CONTENT_LENGTH=2 * 1024 * 1024,
 )
 if PRODUCTION_MODE:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
@@ -73,6 +74,10 @@ def enforce_https():
 
 @app.after_request
 def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(self)")
     if PRODUCTION_MODE and request.is_secure:
         response.headers.setdefault(
             "Strict-Transport-Security",
@@ -92,7 +97,7 @@ google = oauth.register(
 
 def get_db():
     if USE_SQLITE:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = sqlite3.connect(DATABASE_PATH, timeout=10)
         conn.row_factory = sqlite3.Row
         return conn
     if psycopg2 is None:
@@ -173,6 +178,14 @@ def init_db(mark_stale_scrapes=True):
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id "
+            "ON notifications(recipient_email, id DESC)"
+        )
         if mark_stale_scrapes:
             cur.execute(
                 "UPDATE scrape_jobs SET status = 'interrupted', message = 'App restarted before this scrape finished.' WHERE status = 'running'"
@@ -230,6 +243,14 @@ def init_db(mark_stale_scrapes=True):
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id "
+            "ON notifications(recipient_email, id DESC)"
+        )
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'location'")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS total_steps INTEGER NOT NULL DEFAULT 1")

@@ -51,6 +51,38 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(app.app.config["SESSION_COOKIE_SAMESITE"], "Lax")
         self.assertFalse(app.app.config["SESSION_COOKIE_SECURE"])
 
+    def test_security_headers_and_request_limit_are_configured(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+        self.assertEqual(
+            response.headers["Referrer-Policy"],
+            "strict-origin-when-cross-origin",
+        )
+        self.assertEqual(
+            response.headers["Permissions-Policy"],
+            "geolocation=(self)",
+        )
+        self.assertEqual(app.app.config["MAX_CONTENT_LENGTH"], 2 * 1024 * 1024)
+
+    def test_listing_and_notification_indexes_are_created(self):
+        conn = self._connect()
+        try:
+            indexes = {
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index'"
+                )
+            }
+        finally:
+            conn.close()
+
+        self.assertIn("idx_sales_date", indexes)
+        self.assertIn("idx_sales_user_email", indexes)
+        self.assertIn("idx_notifications_recipient_id", indexes)
+
     def test_loading_sales_removes_listings_seven_days_after_sale(self):
         conn = self._connect()
         for title, days_ago in (
