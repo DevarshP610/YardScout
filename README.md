@@ -29,6 +29,7 @@ YardScout helps people find nearby garage sales, browse them on a map, and plan 
 ## Features
 
 - **Find sales:** Browse map pins and listings, search nearby, and open a sale for details.
+- **Save and filter:** Signed-in users can save listings across devices and filter by date, distance from their location, keyword, or saved status.
 - **Plan a route:** Choose a weekend date, add up to eight sales, pick a starting point, and get an estimated driving order. Open the stops in Google Maps for directions.
 - **Post a listing:** Add a sale location, date, title, and description.
 - **Follow creators:** Follow a signed-in listing creator and receive an immediate in-app notification when they post a new sale. Optional SMTP settings can also deliver the notification by email.
@@ -37,6 +38,8 @@ YardScout helps people find nearby garage sales, browse them on a map, and plan 
 - **Automatic cleanup:** Listings are removed after the sale date has passed by seven days.
 
 The route planner requests estimates from the public OSRM service. It has no live traffic or service guarantee, and YardScout does not save routes.
+
+Saved listings are stored against the signed-in account. Location filtering uses the device location only in the browser; YardScout does not store that location.
 
 ## Scraper coverage
 
@@ -76,6 +79,18 @@ python app.py
 Open <http://127.0.0.1:8080>. Local development uses SQLite by default. Set `DATABASE_URL` to use PostgreSQL; set `TICKETMASTER_API_KEY` to enable the optional Ticketmaster lookup.
 
 To enable immediate email notifications for followed creators, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM`. Leave these unset to use in-app notifications only. Browser push notifications are planned separately and are not enabled by these settings.
+
+## Android build
+
+The Capacitor wrapper targets Android SDK 35 and requires JDK 21 and Node.js 20 or newer. From `mobile`:
+
+```powershell
+npm install
+npm run android:build:debug
+```
+
+The debug APK is written to `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
+The wrapper enforces HTTPS, excludes private app data from Android backup and device transfer, and uses the same account-backed saved listings as the web app.
 
 ## Hosting and data safety
 

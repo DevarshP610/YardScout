@@ -83,6 +83,61 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertIn("idx_sales_user_email", indexes)
         self.assertIn("idx_notifications_recipient_id", indexes)
 
+    def test_saved_sales_table_and_indexes_are_created(self):
+        conn = self._connect()
+        try:
+            tables = {
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            indexes = {
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'index'"
+                )
+            }
+        finally:
+            conn.close()
+        self.assertIn("saved_sales", tables)
+        self.assertIn("idx_saved_sales_user", indexes)
+
+    def test_saved_sales_are_private_and_can_be_added_and_removed(self):
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "seller@example.test"}
+        created = self.client.post(
+            "/api/sales",
+            json={
+                "title": "Saved listing",
+                "date": "2099-06-05",
+                "description": "Tools",
+                "lat": 49.8,
+                "lng": -99.9,
+            },
+        )
+        sale_id = created.get_json()["id"]
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "buyer@example.test"}
+        saved = self.client.post("/api/saved-sales", json={"sale_id": sale_id})
+        self.assertEqual(saved.status_code, 201)
+        self.assertEqual(self.client.get("/api/saved-sales").get_json(), [sale_id])
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "other@example.test"}
+        self.assertEqual(self.client.get("/api/saved-sales").get_json(), [])
+        self.assertEqual(
+            self.client.delete(f"/api/saved-sales/{sale_id}").get_json()["saved"],
+            False,
+        )
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "buyer@example.test"}
+        removed = self.client.delete(f"/api/saved-sales/{sale_id}")
+        self.assertEqual(removed.status_code, 200)
+        self.assertEqual(self.client.get("/api/saved-sales").get_json(), [])
+
     def test_loading_sales_removes_listings_seven_days_after_sale(self):
         conn = self._connect()
         for title, days_ago in (

@@ -10,10 +10,10 @@ Small, reviewable commits should each leave the project in a testable state. Com
 | 2 | Automated checks | Run tests and syntax checks on pushes and pull requests; require passing checks before merging to `main`. | 3–4 hours | 2–3 |
 | 3 | Scraper run quality | Report per-source outcomes, errors, progress, and retry state; test interrupted and repeated runs without overstating coverage. | 5–7 hours | 4–5 |
 | 4 | Canadian sources | Research one source at a time; add only a free feed/API or source with clearly approved access, relevant sale events, and testable examples. Budget 2–3 hours for source research and 3–6 hours per accepted adapter. | 5–9+ hours | 2–4 per adapter |
-| 5 | Map and listing search | Add date, distance, and keyword filters that affect the actual results; validate map/list synchronization. | 5–7 hours | 4–5 |
+| 5 | Map and listing search | Add date, distance, and keyword filters that affect the actual results; validate map/list synchronization. **Complete in this pass.** | 5–7 hours | 4–5 |
 | 6 | Listing quality | Add user reports, admin review actions, and duplicate/stale listing checks where source data permits. | 4–6 hours | 3–4 |
-| 7 | Saved sales | Let users bookmark listings and return to them without adding a paid service. | 3–4 hours | 2–3 |
-| 8 | Mobile and accessibility | Check keyboard navigation, focus, contrast, reduced motion, map controls, and narrow layouts; fix and retest issues found. | 3–5 hours | 3–4 |
+| 7 | Saved sales | Let users bookmark listings and return to them without adding a paid service. **Complete in this pass.** | 3–4 hours | 2–3 |
+| 8 | Mobile and accessibility | Check keyboard navigation, focus, contrast, reduced motion, map controls, and narrow layouts; fix and retest issues found. **Android SDK 35 wrapper hardening complete in this pass; broader accessibility review remains.** | 3–5 hours | 3–4 |
 | 9 | Release and feedback | Add a simple issue-reporting path, clear privacy/source coverage notes, and a repeatable release checklist. | 2–3 hours | 2–3 |
 
 ## Suggested sequence

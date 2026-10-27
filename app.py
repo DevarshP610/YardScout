@@ -178,6 +178,14 @@ def init_db(mark_stale_scrapes=True):
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS saved_sales (
+                user_email TEXT NOT NULL,
+                sale_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_email, sale_id)
+            )
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
@@ -185,6 +193,10 @@ def init_db(mark_stale_scrapes=True):
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id "
             "ON notifications(recipient_email, id DESC)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_saved_sales_user "
+            "ON saved_sales(user_email, created_at DESC)"
         )
         if mark_stale_scrapes:
             cur.execute(
@@ -243,6 +255,14 @@ def init_db(mark_stale_scrapes=True):
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS saved_sales (
+                user_email TEXT NOT NULL,
+                sale_id INTEGER NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_email, sale_id)
+            )
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
@@ -250,6 +270,10 @@ def init_db(mark_stale_scrapes=True):
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id "
             "ON notifications(recipient_email, id DESC)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_saved_sales_user "
+            "ON saved_sales(user_email, created_at DESC)"
         )
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'location'")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0")
@@ -595,6 +619,97 @@ def notifications():
     return jsonify(result)
 
 
+@app.route("/api/saved-sales", methods=["GET", "POST"])
+def saved_sales():
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    user_email = normalized_email(user.get("email"))
+    conn = get_db()
+    cur = conn.cursor()
+    placeholder = "?" if USE_SQLITE else "%s"
+
+    if request.method == "POST":
+        data = request.get_json(silent=True)
+        sale_id = data.get("sale_id") if isinstance(data, dict) else None
+        try:
+            sale_id = int(sale_id)
+        except (TypeError, ValueError):
+            cur.close()
+            conn.close()
+            return jsonify({"error": "A valid sale ID is required."}), 400
+        if sale_id < 1:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "A valid sale ID is required."}), 400
+        cur.execute(
+            f"SELECT id FROM sales WHERE id = {placeholder}",
+            (sale_id,),
+        )
+        if cur.fetchone() is None:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "That listing is no longer available."}), 404
+        if USE_SQLITE:
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO saved_sales (user_email, sale_id)
+                VALUES (?, ?)
+                """,
+                (user_email, sale_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO saved_sales (user_email, sale_id)
+                VALUES (%s, %s)
+                ON CONFLICT (user_email, sale_id) DO NOTHING
+                """,
+                (user_email, sale_id),
+            )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"saved": True, "sale_id": sale_id}), 201
+
+    cur.execute(
+        f"""
+        SELECT sale_id
+        FROM saved_sales
+        WHERE user_email = {placeholder}
+        ORDER BY created_at DESC
+        """,
+        (user_email,),
+    )
+    result = [int(row_as_dict(row)["sale_id"]) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify(result)
+
+
+@app.route("/api/saved-sales/<int:sale_id>", methods=["DELETE"])
+def unsave_sale(sale_id):
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    conn = get_db()
+    cur = conn.cursor()
+    if USE_SQLITE:
+        cur.execute(
+            "DELETE FROM saved_sales WHERE user_email = ? AND sale_id = ?",
+            (normalized_email(user.get("email")), sale_id),
+        )
+    else:
+        cur.execute(
+            "DELETE FROM saved_sales WHERE user_email = %s AND sale_id = %s",
+            (normalized_email(user.get("email")), sale_id),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"saved": False, "sale_id": sale_id})
+
+
 @app.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
 def mark_notification_read(notification_id):
     user = session.get("user")
@@ -661,6 +776,8 @@ def download_database_backup():
         sales = [dict(row) for row in cur.fetchall()]
         cur.execute("SELECT * FROM scrape_jobs ORDER BY id")
         scrape_jobs = [dict(row) for row in cur.fetchall()]
+        cur.execute("SELECT * FROM saved_sales ORDER BY user_email, sale_id")
+        saved_sales = [dict(row) for row in cur.fetchall()]
     finally:
         cur.close()
         conn.close()
@@ -673,6 +790,7 @@ def download_database_backup():
         "tables": {
             "sales": sales,
             "scrape_jobs": scrape_jobs,
+            "saved_sales": saved_sales,
         },
     }
     payload = json.dumps(
@@ -1179,6 +1297,10 @@ def delete_sale(sale_id):
         cur.execute("DELETE FROM sales WHERE id = ? AND user_email = ?", (sale_id, user.get("email")))
     else:
         cur.execute("DELETE FROM sales WHERE id = %s AND user_email = %s", (sale_id, user.get("email")))
+    if USE_SQLITE:
+        cur.execute("DELETE FROM saved_sales WHERE sale_id = ?", (sale_id,))
+    else:
+        cur.execute("DELETE FROM saved_sales WHERE sale_id = %s", (sale_id,))
     conn.commit()
     cur.close()
     conn.close()
