@@ -138,6 +138,18 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(removed.status_code, 200)
         self.assertEqual(self.client.get("/api/saved-sales").get_json(), [])
 
+    def test_saved_sales_reject_malformed_sale_ids(self):
+        anonymous_client = app.app.test_client()
+        for payload in ({}, {"sale_id": None}, {"sale_id": True}, {"sale_id": "not-a-number"}):
+            response = anonymous_client.post("/api/saved-sales", json=payload)
+            self.assertEqual(response.status_code, 401)
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "buyer@example.test"}
+        for payload in ({}, {"sale_id": None}, {"sale_id": True}, {"sale_id": "not-a-number"}):
+            response = self.client.post("/api/saved-sales", json=payload)
+            self.assertEqual(response.status_code, 400)
+
     def test_loading_sales_removes_listings_seven_days_after_sale(self):
         conn = self._connect()
         for title, days_ago in (

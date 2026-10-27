@@ -631,9 +631,13 @@ def saved_sales():
 
     if request.method == "POST":
         data = request.get_json(silent=True)
-        sale_id = data.get("sale_id") if isinstance(data, dict) else None
+        raw_sale_id: object = data.get("sale_id") if isinstance(data, dict) else None
+        if isinstance(raw_sale_id, bool) or not isinstance(raw_sale_id, (int, str)):
+            cur.close()
+            conn.close()
+            return jsonify({"error": "A valid sale ID is required."}), 400
         try:
-            sale_id = int(sale_id)
+            sale_id = int(raw_sale_id)
         except (TypeError, ValueError):
             cur.close()
             conn.close()
