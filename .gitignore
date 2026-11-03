@@ -1,6 +1,17 @@
 venv/
+.venv/
+.venv-*/
 __pycache__/
 *.pyc
+.pytest_cache/
 .env
 *.db
 yardscout-backup-*.json
+hs_err_pid*.log
+replay_pid*.log
+mobile/node_modules/
+mobile/android/.gradle/
+mobile/android/**/build/
+mobile/android/local.properties
+mobile/android/hs_err_pid*.log
+mobile/android/replay_pid*.log

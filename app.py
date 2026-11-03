@@ -191,6 +191,9 @@ def init_db(mark_stale_scrapes=True):
             "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
         )
         cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_source_name ON sales(source_name)"
+        )
+        cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id "
             "ON notifications(recipient_email, id DESC)"
         )
@@ -266,6 +269,9 @@ def init_db(mark_stale_scrapes=True):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_source_name ON sales(source_name)"
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id "
@@ -468,6 +474,19 @@ def execute_north_america_scan(job_id, start_index=0, initial_count=0):
 def home():
     user = session.get("user")
     return render_template("index.html", user=user)
+
+
+@app.route("/healthz")
+def healthz():
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1")
+        cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    return jsonify({"status": "ok", "database": "connected"})
 
 
 @app.route("/googlecca4542b2772bb8d.html")
@@ -1195,12 +1214,47 @@ def get_sales():
             "DELETE FROM sales WHERE date <= (CURRENT_DATE - %s)::text",
             (SALE_RETENTION_DAYS,),
         )
-    cur.execute("SELECT * FROM sales ORDER BY id DESC")
+    source_name = request.args.get("source", "").strip()
+    raw_limit = request.args.get("limit")
+    limit = None
+    if raw_limit:
+        try:
+            parsed_limit = int(raw_limit)
+        except ValueError:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "limit must be a whole number between 1 and 500."}), 400
+        if not 1 <= parsed_limit <= 500:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "limit must be a whole number between 1 and 500."}), 400
+        limit = parsed_limit
+
+    if source_name and len(source_name) > 100:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "source must be 100 characters or fewer."}), 400
+
+    placeholder = "?" if USE_SQLITE else "%s"
+    conditions = []
+    parameters = []
+    if source_name:
+        conditions.append(f"source_name = {placeholder}")
+        parameters.append(source_name)
+    query = "SELECT * FROM sales"
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY id DESC"
+    if limit is not None:
+        query += f" LIMIT {limit}"
+    cur.execute(query, parameters)
     sales = cur.fetchall()
     conn.commit()
     cur.close()
     conn.close()
-    return jsonify([dict(s) for s in sales])
+    response = jsonify([dict(s) for s in sales])
+    response.headers["Cache-Control"] = "private, max-age=15, stale-while-revalidate=30"
+    return response
 
 @app.route("/api/sales", methods=["POST"])
 def add_sale():

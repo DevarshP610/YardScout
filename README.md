@@ -36,10 +36,12 @@ YardScout helps people find nearby garage sales, browse them on a map, and plan 
 - **Install on iPhone:** Add YardScout to your iPhone Home Screen from Safari for an app-like experience. The PWA shell uses network-first loading and does not cache private API responses.
 - **Admin tools:** Review listings, add sales, extract text from screenshots, run supported scrapers, check scan progress, and download a private data backup.
 - **Automatic cleanup:** Listings are removed after the sale date has passed by seven days.
+- **Fast health checks:** The hosted service exposes `/healthz` for deployment readiness checks.
 
 The route planner requests estimates from the public OSRM service. It has no live traffic or service guarantee, and YardScout does not save routes.
 
 Saved listings are stored against the signed-in account. Location filtering uses the device location only in the browser; YardScout does not store that location.
+The listings API supports optional bounded `source` and `limit` query parameters for lightweight clients and integrations.
 
 ## Scraper coverage
 

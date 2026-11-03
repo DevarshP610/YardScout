@@ -67,6 +67,12 @@ class AdminScrapeTests(unittest.TestCase):
         )
         self.assertEqual(app.app.config["MAX_CONTENT_LENGTH"], 2 * 1024 * 1024)
 
+    def test_health_check_reports_database_readiness(self):
+        response = self.client.get("/healthz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "ok", "database": "connected"})
+
     def test_listing_and_notification_indexes_are_created(self):
         conn = self._connect()
         try:
@@ -173,6 +179,30 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         remaining_titles = {sale["title"] for sale in response.get_json()}
         self.assertEqual(remaining_titles, {"Still recent", "Upcoming in a month"})
+
+    def test_sales_endpoint_supports_bounded_source_and_limit_filters(self):
+        conn = self._connect()
+        conn.executemany(
+            """
+            INSERT INTO sales (title, date, lat, lng, source_name)
+            VALUES (?, '2099-06-05', 49.8, -99.9, ?)
+            """,
+            [
+                ("GarageSaleFinder listing", "GarageSaleFinder"),
+                ("eBrandon listing", "eBrandon"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/api/sales?source=GarageSaleFinder&limit=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.get_json()), 1)
+        self.assertEqual(response.get_json()[0]["source_name"], "GarageSaleFinder")
+        self.assertIn("private, max-age=15", response.headers["Cache-Control"])
+
+        invalid = self.client.get("/api/sales?limit=0")
+        self.assertEqual(invalid.status_code, 400)
 
     def test_pwa_assets_are_available(self):
         manifest = self.client.get("/static/manifest.webmanifest")

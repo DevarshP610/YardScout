@@ -1289,6 +1289,9 @@
           <option value="15">Within 15 km</option>
           <option value="40">Within 40 km</option>
         </select>
+        <select id="source-filter" aria-label="Filter by source">
+          <option value="all">All sources</option>
+        </select>
         <button id="saved-filter" type="button" aria-pressed="false">Saved only</button>
         <button id="clear-filters" type="button">Clear filters</button>
       </div>
@@ -2187,10 +2190,23 @@
     markerLayer.clearLayers();
     markers.clear();
     const previousSelectionCount = selectedRouteSaleIds.size;
+    updateSourceFilter();
     updateRouteDays();
     if (selectedRouteSaleIds.size !== previousSelectionCount) clearBuiltRoute();
     syncVisibleMarkers();
     filterAndRenderSales();
+  }
+
+  function updateSourceFilter() {
+    const sourceFilter = document.getElementById('source-filter');
+    const selectedSource = sourceFilter.value || 'all';
+    const sources = [...new Set(allSales
+      .map(sale => String(sale.source_name || '').trim())
+      .filter(Boolean))]
+      .sort((first, second) => first.localeCompare(second));
+    sourceFilter.innerHTML = '<option value="all">All sources</option>'
+      + sources.map(source => `<option value="${escAttr(source)}">${escHtml(source)}</option>`).join('');
+    sourceFilter.value = sources.includes(selectedSource) ? selectedSource : 'all';
   }
 
   function syncVisibleMarkers() {
@@ -2385,10 +2401,12 @@
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const dateFilter = document.getElementById('date-filter').value;
     const distanceFilter = document.getElementById('distance-filter').value;
+    const sourceFilter = document.getElementById('source-filter').value;
     filteredSales = allSales.filter(sale =>
       (String(sale.title || '').toLocaleLowerCase().includes(normalizedQuery)
         || String(sale.description || '').toLocaleLowerCase().includes(normalizedQuery))
       && matchesDateFilter(sale.date, dateFilter)
+      && (sourceFilter === 'all' || sale.source_name === sourceFilter)
       && (!savedOnly || savedSaleIds.has(Number(sale.id)))
       && (distanceFilter === 'all' || (
         userLocation
@@ -2409,6 +2427,7 @@
     }
     filterAndRenderSales();
   });
+  document.getElementById('source-filter').addEventListener('change', () => filterAndRenderSales());
   document.getElementById('saved-filter').addEventListener('click', function() {
     if (!currentUserEmail) {
       showToast('Sign in to save and filter listings.');
@@ -2422,6 +2441,7 @@
     document.getElementById('search').value = '';
     document.getElementById('date-filter').value = 'all';
     document.getElementById('distance-filter').value = 'all';
+    document.getElementById('source-filter').value = 'all';
     savedOnly = false;
     document.getElementById('saved-filter').setAttribute('aria-pressed', 'false');
     filterAndRenderSales();

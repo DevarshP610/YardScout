@@ -9,9 +9,9 @@
     "android:open": "cap open android",
     "android:sync": "cap sync android",
     "android:run": "cap run android",
-    "android:build:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
-    "android:lint": "cd android && gradlew.bat lint",
-    "android:test": "cd android && gradlew.bat test"
+    "android:build:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug --no-daemon",
+    "android:lint": "cd android && gradlew.bat lint --no-daemon",
+    "android:test": "cd android && gradlew.bat test --no-daemon"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
