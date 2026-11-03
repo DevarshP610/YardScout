@@ -247,6 +247,34 @@ class AdminScrapeTests(unittest.TestCase):
         invalid = self.client.get("/api/sales?limit=0")
         self.assertEqual(invalid.status_code, 400)
 
+    def test_sales_api_supports_search_and_date_window(self):
+        conn = self._connect()
+        conn.executemany(
+            """
+            INSERT INTO sales (title, date, description, lat, lng, source_name)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                ("Vintage tools", "2099-06-05", "Hand tools", 49.8, -99.9, "Local"),
+                ("Books and toys", "2099-06-12", "Children's books", 49.8, -99.9, "Local"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get(
+            "/api/sales?q=tools&date_from=2099-06-01&date_to=2099-06-10"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        sales = response.get_json()
+        self.assertEqual(len(sales), 1)
+        self.assertEqual(sales[0]["title"], "Vintage tools")
+        self.assertEqual(
+            self.client.get("/api/sales?date_from=not-a-date").status_code,
+            400,
+        )
+
     def test_pwa_assets_are_available(self):
         manifest = self.client.get("/static/manifest.webmanifest")
         icon = self.client.get("/static/yardscout-icon.svg")

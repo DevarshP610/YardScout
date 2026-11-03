@@ -1247,6 +1247,9 @@ def get_sales():
             (SALE_RETENTION_DAYS,),
         )
     source_name = request.args.get("source", "").strip()
+    search = request.args.get("q", "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
     raw_limit = request.args.get("limit")
     limit = None
     if raw_limit:
@@ -1266,6 +1269,18 @@ def get_sales():
         cur.close()
         conn.close()
         return jsonify({"error": "source must be 100 characters or fewer."}), 400
+    if len(search) > 100:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "q must be 100 characters or fewer."}), 400
+    for parameter_name, value in (("date_from", date_from), ("date_to", date_to)):
+        if value:
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                cur.close()
+                conn.close()
+                return jsonify({"error": f"{parameter_name} must be an ISO date."}), 400
 
     placeholder = "?" if USE_SQLITE else "%s"
     conditions = []
@@ -1273,6 +1288,21 @@ def get_sales():
     if source_name:
         conditions.append(f"source_name = {placeholder}")
         parameters.append(source_name)
+    if search:
+        search_pattern = f"%{search}%"
+        conditions.append(
+            "("
+            f"title LIKE {placeholder} OR description LIKE {placeholder} "
+            f"OR source_name LIKE {placeholder}"
+            ")"
+        )
+        parameters.extend([search_pattern] * 3)
+    if date_from:
+        conditions.append(f"date >= {placeholder}")
+        parameters.append(date_from)
+    if date_to:
+        conditions.append(f"date <= {placeholder}")
+        parameters.append(date_to)
     query = "SELECT * FROM sales"
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
