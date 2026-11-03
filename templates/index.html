@@ -2347,6 +2347,7 @@
               <button class="route-stop-toggle follow-creator-toggle" type="button" data-follow-creator="${escAttr(creatorEmail)}" data-creator-name="${escAttr(sale.user_name || '')}" data-creator-picture="${escAttr(sale.user_picture || '')}" aria-pressed="${isFollowingCreator}">
                 ${isFollowingCreator ? 'Following creator' : 'Follow creator'}
               </button>` : '<span></span>'}
+            <button class="route-stop-toggle" type="button" data-share-sale="${escAttr(sale.id)}">Share</button>
             ${currentUserEmail && sale.user_email === currentUserEmail
               ? `<button class="btn-delete" type="button" data-delete-sale="${escAttr(sale.id)}" aria-label="Delete ${escAttr(sale.title)}">Remove</button>`
               : ''}
@@ -2356,7 +2357,7 @@
     }).join('');
     container.querySelectorAll('.route-stop-toggle').forEach(button => {
       button.addEventListener('click', () => {
-        if (button.dataset.followCreator || button.dataset.saveSale) return;
+        if (button.dataset.followCreator || button.dataset.saveSale || button.dataset.shareSale) return;
         const saleId = button.dataset.routeSale;
         if (selectedRouteSaleIds.has(saleId)) {
           selectedRouteSaleIds.delete(saleId);
@@ -2376,6 +2377,9 @@
     });
     container.querySelectorAll('[data-follow-creator]').forEach(button => {
       button.addEventListener('click', () => toggleCreatorFollow(button));
+    });
+    container.querySelectorAll('[data-share-sale]').forEach(button => {
+      button.addEventListener('click', () => shareSale(button.dataset.shareSale));
     });
     container.querySelectorAll('[data-delete-sale]').forEach(button => {
       button.addEventListener('click', () => deleteSale(button.dataset.deleteSale));
@@ -2407,6 +2411,26 @@
     } else {
       map.once('moveend', openMarker);
       map.setView([sale.lat, sale.lng], 16);
+    }
+
+    async function shareSale(id) {
+      const sale = allSales.find(item => String(item.id) === String(id));
+      if (!sale) return;
+      const shareData = {
+        title: sale.title,
+        text: `${sale.title} on ${formatDate(sale.date)} - YardScout`,
+        url: `${window.location.origin}/?sale=${encodeURIComponent(sale.id)}`
+      };
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+        } else {
+          await navigator.clipboard.writeText(shareData.url);
+          showToast('Listing link copied.');
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') showToast('Unable to share this listing.');
+      }
     }
     if (window.innerWidth <= 768) {
       document.getElementById('sidebar').classList.remove('open');
