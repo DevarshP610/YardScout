@@ -62,9 +62,26 @@
       transition: background-color .25s cubic-bezier(.2, .7, .2, 1), color .25s cubic-bezier(.2, .7, .2, 1);
     }
 
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 2000;
+      transform: translateY(-160%);
+      padding: 10px 14px;
+      border-radius: 9px;
+      background: var(--ink);
+      color: var(--surface);
+      transition: transform .2s ease;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
     header {
       background: #1A1206;
-      padding: 14px 24px;
+      padding: max(14px, env(safe-area-inset-top)) 24px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1050,7 +1067,7 @@
     .fab {
       display: none;
       position: fixed;
-      bottom: 24px;
+      bottom: max(24px, env(safe-area-inset-bottom));
       right: 24px;
       width: 56px; height: 56px;
       background: #F5A623;
@@ -1071,6 +1088,7 @@
     }
 
     @media (max-width: 768px) {
+      header { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
       .menu-btn { display: flex; }
       .sidebar {
         position: absolute;
@@ -1168,6 +1186,7 @@
 </head>
 <body>
 
+<a class="skip-link" href="#sales-container">Skip to listings</a>
 <header>
   <div class="logo">
     <div class="logo-icon" aria-hidden="true">
