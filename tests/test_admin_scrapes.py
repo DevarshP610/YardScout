@@ -283,6 +283,8 @@ class AdminScrapeTests(unittest.TestCase):
 
         self.assertEqual(manifest.status_code, 200)
         self.assertEqual(manifest.json["short_name"], "YardScout")
+        self.assertEqual(manifest.json["orientation"], "portrait-primary")
+        self.assertIn("shortcuts", manifest.json)
         self.assertEqual(icon.status_code, 200)
         self.assertIn("<svg", icon.get_data(as_text=True))
         self.assertEqual(service_worker.status_code, 200)
