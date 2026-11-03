@@ -72,6 +72,19 @@ def enforce_https():
     return redirect(request.url.replace("http://", "https://", 1), code=308)
 
 
+@app.before_request
+def reject_cross_origin_mutations():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    origin = request.headers.get("Origin")
+    if not origin:
+        return None
+    expected = request.host_url.rstrip("/")
+    if origin.rstrip("/") != expected:
+        return jsonify({"error": "Cross-origin mutation rejected"}), 403
+    return None
+
+
 @app.after_request
 def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")

@@ -75,6 +75,15 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"status": "ok", "database": "connected"})
 
+    def test_state_changing_requests_reject_cross_origin_origin(self):
+        response = self.client.post(
+            "/api/scrape",
+            headers={"Origin": "https://attacker.example"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json(), {"error": "Cross-origin mutation rejected"})
+
     def test_oauth_callback_requires_verified_google_email(self):
         with patch.object(
             app.google,
