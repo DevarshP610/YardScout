@@ -232,6 +232,15 @@
       position: relative;
     }
 
+    body.mobile-list-mode .sidebar {
+      width: 100%;
+      border-right: 0;
+    }
+
+    body.mobile-list-mode #map {
+      display: none;
+    }
+
     .sidebar {
       width: 360px;
       background: var(--surface);
@@ -1183,6 +1192,9 @@
     <button class="utility-button command-open" id="command-open" type="button" aria-label="Open quick actions" title="Quick actions (Ctrl or Command + K)">
       <span>Quick actions</span><kbd class="command-hint">⌘ K</kbd>
     </button>
+    <button class="utility-button" id="mobile-view-toggle" type="button" aria-pressed="false" title="Switch to a phone-friendly list view">
+      List view
+    </button>
     <button class="utility-button theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark appearance" title="Change appearance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
     </button>
@@ -1381,6 +1393,18 @@
 
   // ── APPEARANCE ──
   const themeToggle = document.getElementById('theme-toggle');
+  const mobileViewToggle = document.getElementById('mobile-view-toggle');
+  const mobileListMode = window.localStorage.getItem('yardscout-mobile-list-mode') === 'true';
+  document.body.classList.toggle('mobile-list-mode', mobileListMode);
+  mobileViewToggle.setAttribute('aria-pressed', String(mobileListMode));
+  mobileViewToggle.textContent = mobileListMode ? 'Map view' : 'List view';
+  mobileViewToggle.addEventListener('click', () => {
+    const enabled = document.body.classList.toggle('mobile-list-mode');
+    window.localStorage.setItem('yardscout-mobile-list-mode', String(enabled));
+    mobileViewToggle.setAttribute('aria-pressed', String(enabled));
+    mobileViewToggle.textContent = enabled ? 'Map view' : 'List view';
+    if (!enabled) window.setTimeout(() => map.invalidateSize(), 50);
+  });
   const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
   function getSavedTheme() {
     try { return localStorage.getItem('yardscout-theme'); }
