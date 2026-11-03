@@ -29,6 +29,7 @@ YardScout helps people find nearby garage sales, browse them on a map, and plan 
 ## Features
 
 - **Find sales:** Browse map pins and listings, search nearby, and open a sale for details.
+- **Search precisely:** Filter the listings API by keyword (`q`), ISO date window (`date_from` and `date_to`), source, and bounded result count.
 - **Save and filter:** Signed-in users can save listings across devices and filter by date, distance from their location, keyword, or saved status.
 - **Plan a route:** Choose a weekend date, add up to eight sales, pick a starting point, and get an estimated driving order. Open the stops in Google Maps for directions.
 - **Post a listing:** Add a sale location, date, title, and description.
@@ -37,6 +38,9 @@ YardScout helps people find nearby garage sales, browse them on a map, and plan 
 - **Admin tools:** Review listings, add sales, extract text from screenshots, run supported scrapers, check scan progress, and download a private data backup.
 - **Automatic cleanup:** Listings are removed after the sale date has passed by seven days.
 - **Fast health checks:** The hosted service exposes `/healthz` for deployment readiness checks.
+- **Security defaults:** Production requires an explicit secret key and admin email, rejects cross-origin mutations, sends browser hardening headers, and requires verified Google email claims.
+
+For a desktop demonstration of the iPhone layout, open `/iphone-preview`. The preview is only a visual frame; the same responsive PWA is the installable experience on a real iPhone.
 
 The route planner requests estimates from the public OSRM service. It has no live traffic or service guarantee, and YardScout does not save routes.
 
