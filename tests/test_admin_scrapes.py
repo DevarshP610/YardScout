@@ -73,6 +73,38 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"status": "ok", "database": "connected"})
 
+    def test_oauth_callback_requires_verified_google_email(self):
+        with patch.object(
+            app.google,
+            "authorize_access_token",
+            return_value={"userinfo": {"email": app.ADMIN_EMAIL, "email_verified": False}},
+        ):
+            response = self.client.get("/auth/callback")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json(), {"error": "Verified Google user info unavailable"})
+
+    def test_oauth_callback_normalizes_verified_email_and_clears_session(self):
+        with self.client.session_transaction() as session:
+            session["stale"] = "value"
+        with patch.object(
+            app.google,
+            "authorize_access_token",
+            return_value={
+                "userinfo": {
+                    "email": f"  {app.ADMIN_EMAIL.upper()}  ",
+                    "email_verified": True,
+                    "name": "Admin",
+                }
+            },
+        ):
+            response = self.client.get("/auth/callback")
+
+        self.assertEqual(response.status_code, 302)
+        with self.client.session_transaction() as session:
+            self.assertNotIn("stale", session)
+            self.assertEqual(session["user"]["email"], app.ADMIN_EMAIL)
+
     def test_listing_and_notification_indexes_are_created(self):
         conn = self._connect()
         try:

@@ -507,10 +507,17 @@ def login():
 def auth_callback():
     token = google.authorize_access_token()
     user = token.get("userinfo")
-    if not user or not user.get("email"):
-        return jsonify({"error": "Google user info unavailable"}), 400
+    if (
+        not isinstance(user, Mapping)
+        or not isinstance(user.get("email"), str)
+        or not user.get("email").strip()
+        or user.get("email_verified") is not True
+    ):
+        return jsonify({"error": "Verified Google user info unavailable"}), 400
+    email = user["email"].strip().casefold()
+    session.clear()
     session["user"] = {
-        "email": user.get("email"),
+        "email": email,
         "name": user.get("name"),
         "picture": user.get("picture")
     }
