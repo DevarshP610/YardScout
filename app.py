@@ -503,6 +503,11 @@ def home():
     return render_template("index.html", user=user)
 
 
+@app.route("/iphone-preview")
+def iphone_preview():
+    return render_template("iphone_preview.html")
+
+
 @app.route("/healthz")
 def healthz():
     conn = get_db()

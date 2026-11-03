@@ -76,6 +76,12 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"status": "ok", "database": "connected"})
 
+    def test_iphone_preview_is_available_without_login(self):
+        response = self.client.get("/iphone-preview")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("YardScout iPhone preview", response.get_data(as_text=True))
+
     def test_state_changing_requests_reject_cross_origin_origin(self):
         response = self.client.post(
             "/api/scrape",
