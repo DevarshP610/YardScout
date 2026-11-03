@@ -1,6 +1,7 @@
-const CACHE_NAME = 'yardscout-shell-v1';
+const CACHE_NAME = 'yardscout-shell-v2';
 const SHELL_URLS = [
   '/',
+  '/static/offline.html',
   '/static/manifest.webmanifest',
   '/static/yardscout-icon.svg'
 ];
@@ -37,7 +38,7 @@ self.addEventListener('fetch', event => {
           caches.open(CACHE_NAME).then(cache => cache.put('/', copy));
           return response;
         })
-        .catch(() => caches.match('/'))
+        .catch(() => caches.match('/').then(cached => cached || caches.match('/static/offline.html')))
     );
     return;
   }

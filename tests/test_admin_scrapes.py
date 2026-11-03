@@ -279,16 +279,20 @@ class AdminScrapeTests(unittest.TestCase):
         manifest = self.client.get("/static/manifest.webmanifest")
         icon = self.client.get("/static/yardscout-icon.svg")
         service_worker = self.client.get("/static/service-worker.js")
+        offline_page = self.client.get("/static/offline.html")
 
         self.assertEqual(manifest.status_code, 200)
         self.assertEqual(manifest.json["short_name"], "YardScout")
         self.assertEqual(icon.status_code, 200)
         self.assertIn("<svg", icon.get_data(as_text=True))
         self.assertEqual(service_worker.status_code, 200)
-        self.assertIn("yardscout-shell-v1", service_worker.get_data(as_text=True))
+        self.assertIn("yardscout-shell-v2", service_worker.get_data(as_text=True))
+        self.assertEqual(offline_page.status_code, 200)
+        self.assertIn("YardScout is offline", offline_page.get_data(as_text=True))
         manifest.close()
         icon.close()
         service_worker.close()
+        offline_page.close()
 
     def test_followed_creator_receives_immediate_notification(self):
         with self.client.session_transaction() as session:
