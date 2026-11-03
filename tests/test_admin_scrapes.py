@@ -65,6 +65,8 @@ class AdminScrapeTests(unittest.TestCase):
             response.headers["Permissions-Policy"],
             "geolocation=(self)",
         )
+        self.assertIn("frame-ancestors 'none'", response.headers["Content-Security-Policy"])
+        self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
         self.assertEqual(app.app.config["MAX_CONTENT_LENGTH"], 2 * 1024 * 1024)
 
     def test_health_check_reports_database_readiness(self):

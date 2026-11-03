@@ -78,6 +78,18 @@ def add_security_headers(response):
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "geolocation=(self)")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'; "
+        "script-src 'self' https://unpkg.com 'unsafe-inline'; "
+        "style-src 'self' https://unpkg.com 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https:; "
+        "font-src 'self' https: data:",
+    )
     if PRODUCTION_MODE and request.is_secure:
         response.headers.setdefault(
             "Strict-Transport-Security",
