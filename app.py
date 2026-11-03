@@ -55,7 +55,9 @@ if DATABASE_URL and psycopg2 is None:
     )
 USE_SQLITE = not DATABASE_URL
 SALE_RETENTION_DAYS = 7
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "devarshp610@gmail.com").strip().casefold()
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").strip().casefold()
+if not ADMIN_EMAIL and APP_ENV == "test":
+    ADMIN_EMAIL = "test-admin@example.test"
 DATABASE_PATH = os.environ.get("DATABASE_PATH", "garage_sale_finder.db")
 SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))

@@ -50,6 +50,7 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertTrue(app.app.config["SESSION_COOKIE_HTTPONLY"])
         self.assertEqual(app.app.config["SESSION_COOKIE_SAMESITE"], "Lax")
         self.assertFalse(app.app.config["SESSION_COOKIE_SECURE"])
+        self.assertEqual(app.ADMIN_EMAIL, "test-admin@example.test")
 
     def test_security_headers_and_request_limit_are_configured(self):
         response = self.client.get("/")

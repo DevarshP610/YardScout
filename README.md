@@ -78,6 +78,9 @@ $env:GOOGLE_CLIENT_SECRET = "your-client-secret"
 python app.py
 ```
 
+`ADMIN_EMAIL` is required for production admin access. YardScout intentionally has no
+hard-coded administrator account; leaving this unset disables admin-only actions.
+
 Open <http://127.0.0.1:8080>. Local development uses SQLite by default. Set `DATABASE_URL` to use PostgreSQL; set `TICKETMASTER_API_KEY` to enable the optional Ticketmaster lookup.
 
 To enable immediate email notifications for followed creators, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM`. Leave these unset to use in-app notifications only. Browser push notifications are planned separately and are not enabled by these settings.
