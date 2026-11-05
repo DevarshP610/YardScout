@@ -2207,6 +2207,14 @@
     renderNotifications();
   }
 
+  let notificationRefreshTimer = null;
+  function startNotificationRefresh() {
+    window.clearInterval(notificationRefreshTimer);
+    notificationRefreshTimer = window.setInterval(() => {
+      if (currentUserEmail && navigator.onLine) loadNotifications();
+    }, 60000);
+  }
+
   // ── LOAD SALES ──
   async function loadSales() {
     try {
@@ -2596,6 +2604,7 @@
             <a href="/logout" class="btn-logout">Sign out</a>
           </div>`;
         await Promise.all([loadFollowedCreators(), loadNotifications(), loadSavedSales()]);
+        startNotificationRefresh();
       } else {
         currentUserEmail = null;
         document.getElementById('notification-menu').hidden = true;
