@@ -6,6 +6,7 @@ import json
 import secrets
 import smtplib
 import time
+import uuid
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
 from email.message import EmailMessage
@@ -21,7 +22,7 @@ except ImportError:  # pragma: no cover - fallback when Postgres driver is unava
     psycopg2 = None
     RealDictCursor = None
 
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session
+from flask import Flask, g, render_template, jsonify, request, redirect, url_for, session
 from authlib.integrations.flask_client import OAuth
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -74,6 +75,7 @@ MUTATION_RATE_WINDOW_SECONDS = 60
 
 @app.before_request
 def enforce_https():
+    g.request_id = uuid.uuid4().hex
     if not PRODUCTION_MODE or request.is_secure:
         return None
     return redirect(request.url.replace("http://", "https://", 1), code=308)
@@ -116,6 +118,7 @@ def rate_limit_mutations():
 
 @app.after_request
 def add_security_headers(response):
+    response.headers.setdefault("X-Request-ID", getattr(g, "request_id", "unknown"))
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")

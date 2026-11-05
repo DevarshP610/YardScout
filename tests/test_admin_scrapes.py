@@ -69,6 +69,7 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", response.headers["Content-Security-Policy"])
         self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
         self.assertEqual(app.app.config["MAX_CONTENT_LENGTH"], 2 * 1024 * 1024)
+        self.assertRegex(response.headers["X-Request-ID"], r"^[0-9a-f-]{16,64}$")
 
     def test_health_check_reports_database_readiness(self):
         response = self.client.get("/healthz")
