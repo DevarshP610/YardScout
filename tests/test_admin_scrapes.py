@@ -320,6 +320,24 @@ class AdminScrapeTests(unittest.TestCase):
             400,
         )
 
+    def test_sales_summary_reports_public_listing_window(self):
+        conn = self._connect()
+        conn.execute(
+            "INSERT INTO sales (title, date, lat, lng) VALUES (?, ?, ?, ?)",
+            ("Summary sale", "2099-06-05", 49.8, -99.9),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/api/summary")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {
+            "total": 1,
+            "earliest": "2099-06-05",
+            "latest": "2099-06-05",
+        })
+
     def test_pwa_assets_are_available(self):
         manifest = self.client.get("/static/manifest.webmanifest")
         icon = self.client.get("/static/yardscout-icon.svg")

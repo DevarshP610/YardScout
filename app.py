@@ -1377,6 +1377,22 @@ def get_sales():
     response.headers["Cache-Control"] = "private, max-age=15, stale-while-revalidate=30"
     return response
 
+
+@app.route("/api/summary")
+def sales_summary():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) AS total, MIN(date) AS earliest, MAX(date) AS latest FROM sales")
+    summary = row_as_dict(cur.fetchone())
+    cur.close()
+    conn.close()
+    return jsonify({
+        "total": int(summary["total"] or 0),
+        "earliest": summary["earliest"],
+        "latest": summary["latest"],
+    })
+
+
 @app.route("/api/sales", methods=["POST"])
 def add_sale():
     user = session.get("user")
