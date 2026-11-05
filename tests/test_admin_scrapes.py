@@ -83,6 +83,15 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("YardScout iPhone preview", response.get_data(as_text=True))
 
+    def test_homepage_exposes_search_branding_metadata(self):
+        response = self.client.get("/")
+        html = response.get_data(as_text=True)
+
+        self.assertIn('rel="icon"', html)
+        self.assertIn("/static/yardscout-icon.svg", html)
+        self.assertIn('"@type": "Organization"', html)
+        self.assertIn('"logo": "https://yardscout.me/static/yardscout-icon.svg"', html)
+
     def test_search_discovery_files_are_available(self):
         robots = self.client.get("/robots.txt")
         sitemap = self.client.get("/sitemap.xml")
