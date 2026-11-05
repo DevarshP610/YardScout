@@ -1284,6 +1284,16 @@ def get_sales():
     search = request.args.get("q", "").strip()
     date_from = request.args.get("date_from", "").strip()
     date_to = request.args.get("date_to", "").strip()
+    bounds = {}
+    for bound_name in ("min_lat", "max_lat", "min_lng", "max_lng"):
+        raw_bound = request.args.get(bound_name, "").strip()
+        if raw_bound:
+            try:
+                bounds[bound_name] = float(raw_bound)
+            except ValueError:
+                cur.close()
+                conn.close()
+                return jsonify({"error": f"{bound_name} must be a number."}), 400
     raw_limit = request.args.get("limit")
     limit = None
     if raw_limit:
@@ -1337,6 +1347,18 @@ def get_sales():
     if date_to:
         conditions.append(f"date <= {placeholder}")
         parameters.append(date_to)
+    if "min_lat" in bounds:
+        conditions.append(f"lat >= {placeholder}")
+        parameters.append(bounds["min_lat"])
+    if "max_lat" in bounds:
+        conditions.append(f"lat <= {placeholder}")
+        parameters.append(bounds["max_lat"])
+    if "min_lng" in bounds:
+        conditions.append(f"lng >= {placeholder}")
+        parameters.append(bounds["min_lng"])
+    if "max_lng" in bounds:
+        conditions.append(f"lng <= {placeholder}")
+        parameters.append(bounds["max_lng"])
     query = "SELECT * FROM sales"
     if conditions:
         query += " WHERE " + " AND ".join(conditions)

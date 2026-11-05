@@ -296,6 +296,29 @@ class AdminScrapeTests(unittest.TestCase):
             400,
         )
 
+    def test_sales_api_supports_map_bounds(self):
+        conn = self._connect()
+        conn.executemany(
+            "INSERT INTO sales (title, date, lat, lng) VALUES (?, ?, ?, ?)",
+            [
+                ("Inside bounds", "2099-06-05", 49.8, -99.9),
+                ("Outside bounds", "2099-06-05", 50.8, -99.9),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get(
+            "/api/sales?min_lat=49&max_lat=50&min_lng=-101&max_lng=-99"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([sale["title"] for sale in response.get_json()], ["Inside bounds"])
+        self.assertEqual(
+            self.client.get("/api/sales?min_lat=bad").status_code,
+            400,
+        )
+
     def test_pwa_assets_are_available(self):
         manifest = self.client.get("/static/manifest.webmanifest")
         icon = self.client.get("/static/yardscout-icon.svg")
