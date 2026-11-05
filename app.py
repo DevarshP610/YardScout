@@ -533,6 +533,30 @@ def home():
     return render_template("index.html", user=user)
 
 
+@app.route("/robots.txt")
+def robots_txt():
+    return (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        "Disallow: /auth/\n"
+        "Disallow: /login\n"
+        "Disallow: /logout\n"
+        "Sitemap: https://yardscout.me/sitemap.xml\n"
+    ), 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        '<url><loc>https://yardscout.me/</loc></url>'
+        '</urlset>'
+    ), 200, {"Content-Type": "application/xml; charset=utf-8"}
+
+
 @app.route("/iphone-preview")
 def iphone_preview():
     return render_template("iphone_preview.html")

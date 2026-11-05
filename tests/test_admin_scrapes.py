@@ -83,6 +83,16 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("YardScout iPhone preview", response.get_data(as_text=True))
 
+    def test_search_discovery_files_are_available(self):
+        robots = self.client.get("/robots.txt")
+        sitemap = self.client.get("/sitemap.xml")
+
+        self.assertEqual(robots.status_code, 200)
+        self.assertIn("Sitemap: https://yardscout.me/sitemap.xml", robots.get_data(as_text=True))
+        self.assertIn("Disallow: /api/", robots.get_data(as_text=True))
+        self.assertEqual(sitemap.status_code, 200)
+        self.assertIn("<loc>https://yardscout.me/</loc>", sitemap.get_data(as_text=True))
+
     def test_state_changing_requests_reject_cross_origin_origin(self):
         response = self.client.post(
             "/api/scrape",
