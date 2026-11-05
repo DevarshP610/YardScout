@@ -24,7 +24,12 @@
 
 YardScout helps people find nearby garage sales, browse them on a map, and plan a route between stops. It also includes a separate admin area for reviewing listings and running the supported scrapers.
 
-**[Open the live site](https://yardscout.me)** · **[See the roadmap](./ROADMAP.md)** · **[Read the license](./LICENSE)**
+**[Open the live site](https://yardscout.me)** · **[Try the iPhone preview](https://yardscout.me/iphone-preview)** · **[See the roadmap](./ROADMAP.md)** · **[Read the license](./LICENSE)**
+
+YardScout is a map-first garage-sale finder for people who want to discover local sales,
+save the best stops, and build a route for the weekend. It is also a practical open-source
+project for learning Flask, SQLite/PostgreSQL, scraping with source permissions, PWA design,
+and Android packaging.
 
 ## Features
 
@@ -48,6 +53,14 @@ The route planner requests estimates from the public OSRM service. It has no liv
 
 Saved listings are stored against the signed-in account. Location filtering uses the device location only in the browser; YardScout does not store that location.
 The listings API supports optional bounded `source` and `limit` query parameters for lightweight clients and integrations.
+
+## Contributing
+
+New here? Start with [CONTRIBUTING.md](./CONTRIBUTING.md), then look for issues labeled
+`good first issue` or `help wanted`. Bug reports and feature requests have guided forms,
+and every pull request runs the Python test suite through GitHub Actions.
+
+Please do not add unauthorized crawlers or commit credentials, private backups, or database files.
 
 ## Scraper coverage
 

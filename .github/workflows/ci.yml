@@ -1,0 +1,32 @@
+name: YardScout checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pytest
+      - name: Run tests
+        env:
+          APP_ENV: test
+          SECRET_KEY: test-secret-key-for-yardscout-ci-only-123456
+        run: python -m pytest -q
+      - name: Compile Python
+        run: python -m py_compile app.py
+      - name: Check diff formatting
+        run: git diff --check
