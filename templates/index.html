@@ -1217,6 +1217,7 @@
     <button class="utility-button theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark appearance" title="Change appearance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
     </button>
+    <button class="utility-button install-button" id="install-button" type="button" hidden>Install</button>
     <button class="guide-tab" id="guide-open" type="button" aria-haspopup="dialog" aria-controls="guide-dialog">Guide</button>
     <div id="auth-area"></div>
     <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -1412,6 +1413,20 @@
 
   // ── APPEARANCE ──
   const themeToggle = document.getElementById('theme-toggle');
+  let deferredInstallPrompt = null;
+  const installButton = document.getElementById('install-button');
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installButton.hidden = false;
+  });
+  installButton.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installButton.hidden = true;
+  });
   const mobileViewToggle = document.getElementById('mobile-view-toggle');
   const mobileListMode = window.localStorage.getItem('yardscout-mobile-list-mode') === 'true';
   document.body.classList.toggle('mobile-list-mode', mobileListMode);
