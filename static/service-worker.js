@@ -43,6 +43,17 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  if (new URL(request.url).pathname.startsWith('/static/')) {
+    event.respondWith(
+      caches.match(request).then(cached => cached || fetch(request).then(response => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+        return response;
+      }))
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(request).catch(() => caches.match(request))
   );

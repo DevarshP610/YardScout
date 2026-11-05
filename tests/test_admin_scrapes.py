@@ -334,6 +334,7 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertIn("<svg", icon.get_data(as_text=True))
         self.assertEqual(service_worker.status_code, 200)
         self.assertIn("yardscout-shell-v2", service_worker.get_data(as_text=True))
+        self.assertIn("pathname.startsWith('/static/')", service_worker.get_data(as_text=True))
         self.assertEqual(offline_page.status_code, 200)
         self.assertIn("YardScout is offline", offline_page.get_data(as_text=True))
         manifest.close()
