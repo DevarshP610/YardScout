@@ -2632,6 +2632,11 @@
     }
   }
 
+  const sharedUrl = new URLSearchParams(window.location.search).get('url');
+  if (sharedUrl && /^https?:\/\//i.test(sharedUrl)) {
+    showToast('Shared listing link received. Review it before opening.');
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/static/service-worker.js', { scope: '/' })
