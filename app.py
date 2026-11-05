@@ -5,6 +5,7 @@ import threading
 import json
 import secrets
 import smtplib
+import time
 from collections.abc import Mapping
 from datetime import date, datetime, timezone
 from email.message import EmailMessage
@@ -65,6 +66,10 @@ SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USERNAME).strip()
 scrape_lock = threading.Lock()
+mutation_windows = {}
+mutation_window_lock = threading.Lock()
+MUTATION_RATE_LIMIT = 60
+MUTATION_RATE_WINDOW_SECONDS = 60
 
 
 @app.before_request
@@ -84,6 +89,28 @@ def reject_cross_origin_mutations():
     expected = request.host_url.rstrip("/")
     if origin.rstrip("/") != expected:
         return jsonify({"error": "Cross-origin mutation rejected"}), 403
+    return None
+
+
+@app.before_request
+def rate_limit_mutations():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    identity = request.remote_addr or "unknown"
+    now = time.monotonic()
+    with mutation_window_lock:
+        timestamps = [
+            timestamp
+            for timestamp in mutation_windows.get(identity, [])
+            if now - timestamp < MUTATION_RATE_WINDOW_SECONDS
+        ]
+        if len(timestamps) >= MUTATION_RATE_LIMIT:
+            mutation_windows[identity] = timestamps
+            response = jsonify({"error": "Too many changes. Try again shortly."})
+            response.headers["Retry-After"] = str(MUTATION_RATE_WINDOW_SECONDS)
+            return response, 429
+        timestamps.append(now)
+        mutation_windows[identity] = timestamps
     return None
 
 

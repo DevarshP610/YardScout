@@ -91,6 +91,20 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.get_json(), {"error": "Cross-origin mutation rejected"})
 
+    def test_mutation_rate_limit_returns_retry_after(self):
+        original_limit = app.MUTATION_RATE_LIMIT
+        app.MUTATION_RATE_LIMIT = 1
+        app.mutation_windows.clear()
+        try:
+            self.assertEqual(self.client.post("/api/scrape").status_code, 410)
+            response = self.client.post("/api/scrape")
+        finally:
+            app.MUTATION_RATE_LIMIT = original_limit
+            app.mutation_windows.clear()
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.headers["Retry-After"], "60")
+
     def test_oauth_callback_requires_verified_google_email(self):
         with patch.object(
             app.google,
