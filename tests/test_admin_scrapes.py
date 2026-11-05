@@ -319,6 +319,14 @@ class AdminScrapeTests(unittest.TestCase):
             self.client.get("/api/sales?min_lat=bad").status_code,
             400,
         )
+        self.assertEqual(
+            self.client.get("/api/sales?min_lat=91").status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.get("/api/sales?min_lat=50&max_lat=49").status_code,
+            400,
+        )
 
     def test_sales_summary_reports_public_listing_window(self):
         conn = self._connect()

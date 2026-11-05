@@ -1328,6 +1328,32 @@ def get_sales():
                 cur.close()
                 conn.close()
                 return jsonify({"error": f"{parameter_name} must be an ISO date."}), 400
+    if "min_lat" in bounds and not -90 <= bounds["min_lat"] <= 90:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "min_lat must be between -90 and 90."}), 400
+    if "max_lat" in bounds and not -90 <= bounds["max_lat"] <= 90:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "max_lat must be between -90 and 90."}), 400
+    if "min_lng" in bounds and not -180 <= bounds["min_lng"] <= 180:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "min_lng must be between -180 and 180."}), 400
+    if "max_lng" in bounds and not -180 <= bounds["max_lng"] <= 180:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "max_lng must be between -180 and 180."}), 400
+    if (
+        "min_lat" in bounds and "max_lat" in bounds
+        and bounds["min_lat"] > bounds["max_lat"]
+    ) or (
+        "min_lng" in bounds and "max_lng" in bounds
+        and bounds["min_lng"] > bounds["max_lng"]
+    ):
+        cur.close()
+        conn.close()
+        return jsonify({"error": "Map bounds must have minimums below maximums."}), 400
 
     placeholder = "?" if USE_SQLITE else "%s"
     conditions = []
