@@ -1330,7 +1330,10 @@
     </div>
 
     <div class="sales-list">
-      <div class="list-header" id="list-header">0 active listings</div>
+      <div class="list-header">
+        <span id="list-header">0 active listings</span>
+        <button class="route-stop-toggle" id="refresh-sales" type="button">Refresh</button>
+      </div>
       <div id="sales-container">
         <div class="sale-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
       </div>
@@ -2233,6 +2236,7 @@
       } else {
         window.setTimeout(cacheSales, 0);
       }
+
     } catch (error) {
       let cachedSales = [];
       try {
@@ -2251,6 +2255,14 @@
       console.warn('Could not refresh sale listings:', error);
     }
   }
+
+  document.getElementById('refresh-sales').addEventListener('click', async function() {
+    this.disabled = true;
+    this.textContent = 'Refreshing…';
+    await loadSales();
+    this.disabled = false;
+    this.textContent = 'Refresh';
+  });
 
   function renderSales(sales) {
     markerLayer.clearLayers();
