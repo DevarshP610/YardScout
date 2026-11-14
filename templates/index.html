@@ -1813,6 +1813,11 @@
         <select id="source-filter" aria-label="Filter by source">
           <option value="all">All sources</option>
         </select>
+        <select id="sort-filter" aria-label="Sort listings">
+          <option value="soonest">Soonest first</option>
+          <option value="closest">Closest first</option>
+          <option value="newest">Recently added</option>
+        </select>
         <button id="saved-filter" type="button" aria-pressed="false">Saved only</button>
         <button id="clear-filters" type="button">Clear filters</button>
       </div>
@@ -2148,6 +2153,7 @@
       function(pos) {
         userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+        filterAndRenderSales();
       },
       function(err) { console.log("Location unavailable:", err); }
     );
@@ -2166,7 +2172,15 @@
   let currentUserEmail = null;
   let userLocation = null;
   const savedSaleIds = new Set();
-  let savedOnly = false;
+  const discoveryPreferenceKey = 'yardscout-discovery-preferences';
+  let discoveryPreferences = {};
+  try {
+    const storedPreferences = JSON.parse(localStorage.getItem(discoveryPreferenceKey) || '{}');
+    if (storedPreferences && typeof storedPreferences === 'object' && !Array.isArray(storedPreferences)) {
+      discoveryPreferences = storedPreferences;
+    }
+  } catch { discoveryPreferences = {}; }
+  let savedOnly = discoveryPreferences.savedOnly === true;
   const followedCreatorEmails = new Set();
   let notifications = [];
   const routeDayInput = document.getElementById('route-day');
@@ -2773,7 +2787,8 @@
       .sort((first, second) => first.localeCompare(second));
     sourceFilter.innerHTML = '<option value="all">All sources</option>'
       + sources.map(source => `<option value="${escAttr(source)}">${escHtml(source)}</option>`).join('');
-    sourceFilter.value = sources.includes(selectedSource) ? selectedSource : 'all';
+    const preferredSource = discoveryPreferences.source || selectedSource;
+    sourceFilter.value = sources.includes(preferredSource) ? preferredSource : 'all';
   }
 
   function syncVisibleMarkers() {
@@ -2977,6 +2992,37 @@
     return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
+  function persistDiscoveryPreferences() {
+    const preferences = {
+      query: document.getElementById('search').value,
+      date: document.getElementById('date-filter').value,
+      distance: document.getElementById('distance-filter').value,
+      source: document.getElementById('source-filter').value,
+      sort: document.getElementById('sort-filter').value,
+      savedOnly,
+    };
+    try { localStorage.setItem(discoveryPreferenceKey, JSON.stringify(preferences)); }
+    catch { /* Filtering still works when storage is unavailable. */ }
+  }
+
+  function applyDiscoveryPreferences() {
+    const search = document.getElementById('search');
+    const dateFilter = document.getElementById('date-filter');
+    const distanceFilter = document.getElementById('distance-filter');
+    const sortFilter = document.getElementById('sort-filter');
+    search.value = typeof discoveryPreferences.query === 'string' ? discoveryPreferences.query : '';
+    if ([...dateFilter.options].some(option => option.value === discoveryPreferences.date)) {
+      dateFilter.value = discoveryPreferences.date;
+    }
+    if ([...distanceFilter.options].some(option => option.value === discoveryPreferences.distance)) {
+      distanceFilter.value = discoveryPreferences.distance;
+    }
+    if ([...sortFilter.options].some(option => option.value === discoveryPreferences.sort)) {
+      sortFilter.value = discoveryPreferences.sort;
+    }
+    document.getElementById('saved-filter').setAttribute('aria-pressed', String(savedOnly));
+  }
+
   function matchesDateFilter(saleDate, filter) {
     if (filter === 'all') return true;
     const today = new Date();
@@ -3005,6 +3051,15 @@
           <= Number(distanceFilter)
       ))
     );
+    filteredSales.sort((first, second) => {
+      if (sortFilter === 'newest') return Number(second.id) - Number(first.id);
+      if (sortFilter === 'closest' && userLocation) {
+        return distanceInKilometers(userLocation, { lat: Number(first.lat), lng: Number(first.lng) })
+          - distanceInKilometers(userLocation, { lat: Number(second.lat), lng: Number(second.lng) });
+      }
+      return String(first.date).localeCompare(String(second.date)) || Number(second.id) - Number(first.id);
+    });
+    persistDiscoveryPreferences();
     visibleSalesCount = listingPageSize;
     renderList();
   }
@@ -3019,6 +3074,7 @@
     filterAndRenderSales();
   });
   document.getElementById('source-filter').addEventListener('change', () => filterAndRenderSales());
+  document.getElementById('sort-filter').addEventListener('change', () => filterAndRenderSales());
   document.getElementById('saved-filter').addEventListener('click', function() {
     if (!currentUserEmail) {
       showToast('Sign in to save and filter listings.');
@@ -3033,8 +3089,10 @@
     document.getElementById('date-filter').value = 'all';
     document.getElementById('distance-filter').value = 'all';
     document.getElementById('source-filter').value = 'all';
+    document.getElementById('sort-filter').value = 'soonest';
     savedOnly = false;
     document.getElementById('saved-filter').setAttribute('aria-pressed', 'false');
+    persistDiscoveryPreferences();
     filterAndRenderSales();
   });
 
@@ -3152,6 +3210,7 @@
   }
 
   // ── INIT ──
+  applyDiscoveryPreferences();
   restoreSaleDraft();
   loadUser();
   loadSales();

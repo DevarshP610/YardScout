@@ -88,6 +88,8 @@ class AdminScrapeTests(unittest.TestCase):
         html = response.get_data(as_text=True)
 
         self.assertIn('rel="icon"', html)
+        self.assertIn('id="sort-filter"', html)
+        self.assertIn("yardscout-discovery-preferences", html)
         self.assertIn("/static/yardscout-icon.svg", html)
         self.assertIn('"@type": "Organization"', html)
         self.assertIn('"logo": "https://yardscout.me/static/yardscout-icon.svg"', html)
