@@ -40,6 +40,7 @@ and Android packaging.
 - **Plan a route:** Choose a weekend date, add up to eight sales, pick a starting point, and get an estimated driving order. Open the stops in Google Maps for directions.
 - **Post a listing:** Add a sale location, date, title, and description.
 - **Follow creators:** Follow a signed-in listing creator and receive an immediate in-app notification when they post a new sale. Optional SMTP settings can also deliver the notification by email.
+- **Browser push alerts:** Signed-in users can opt in to browser notifications for new sales from followed creators. Push delivery is optional; in-app and email notifications remain available without it.
 - **Install on iPhone:** Add YardScout to your iPhone Home Screen from Safari for an app-like experience. The PWA shell uses network-first loading and does not cache private API responses.
 - **Mobile polish:** Use the in-app install prompt, one-tap listing refresh, native sharing, and OS share-target support when YardScout is installed.
 - **Admin tools:** Review listings, add sales, extract text from screenshots, run supported scrapers, check scan progress, and download a private data backup.
@@ -102,7 +103,7 @@ hard-coded administrator account; leaving this unset disables admin-only actions
 
 Open <http://127.0.0.1:8080>. Local development uses SQLite by default. Set `DATABASE_URL` to use PostgreSQL; set `TICKETMASTER_API_KEY` to enable the optional Ticketmaster lookup.
 
-To enable immediate email notifications for followed creators, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM`. Leave these unset to use in-app notifications only. Browser push notifications are planned separately and are not enabled by these settings.
+To enable immediate email notifications for followed creators, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM`. Leave these unset to use in-app notifications only. To enable browser push notifications, configure `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and optionally `VAPID_CLAIMS_EMAIL` in the deployment environment. Keep the private key secret; users must opt in from the notifications menu in a supported browser.
 
 ## Android build
 

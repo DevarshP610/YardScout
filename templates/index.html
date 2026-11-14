@@ -235,6 +235,8 @@
     .notification-item { display: block; width: 100%; padding: 9px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
     .notification-item:hover, .notification-item.unread { background: var(--accent-soft); }
     .notification-empty { padding: 10px; color: var(--muted); font-size: 12px; }
+    .push-alert-button { width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+    .push-alert-button:hover { background: var(--accent-soft); }
 
     .command-hint {
       padding: 2px 5px;
@@ -2669,13 +2671,13 @@
     count.hidden = unread === 0;
     if (!notifications.length) {
       list.innerHTML = '<div class="notification-empty">No notifications yet.</div>';
-      return;
+    } else {
+      list.innerHTML = notifications.map(item => `
+        <button class="notification-item ${item.read_at ? '' : 'unread'}" type="button" data-notification-id="${item.id}">
+          ${escHtml(item.message)}
+        </button>
+      `).join('');
     }
-    list.innerHTML = notifications.map(item => `
-      <button class="notification-item ${item.read_at ? '' : 'unread'}" type="button" data-notification-id="${item.id}">
-        ${escHtml(item.message)}
-      </button>
-    `).join('');
     list.querySelectorAll('[data-notification-id]').forEach(button => {
       button.addEventListener('click', async () => {
         const response = await fetch(`/api/notifications/${button.dataset.notificationId}/read`, { method: 'POST' });
@@ -2686,6 +2688,68 @@
         }
       });
     });
+    if (pushNotificationsAvailable) {
+      const pushButton = document.createElement('button');
+      pushButton.className = 'push-alert-button';
+      pushButton.type = 'button';
+      pushButton.id = 'push-alert-button';
+      pushButton.textContent = pushSubscriptionActive ? 'Push alerts enabled' : 'Enable push alerts';
+      pushButton.disabled = pushSubscriptionActive;
+      pushButton.addEventListener('click', enablePushNotifications);
+      list.appendChild(pushButton);
+    }
+  }
+
+  let pushNotificationsAvailable = false;
+  let pushSubscriptionActive = false;
+
+  function decodeVapidKey(value) {
+    const padding = '='.repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from(raw, character => character.charCodeAt(0));
+  }
+
+  async function enablePushNotifications() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Push alerts were not enabled.');
+        return;
+      }
+      const config = await fetch('/api/push/config').then(response => response.json());
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: decodeVapidKey(config.public_key)
+      });
+      const response = await fetch('/api/push/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription.toJSON())
+      });
+      if (!response.ok) throw new Error('Subscription request failed.');
+      pushSubscriptionActive = true;
+      renderNotifications();
+      showToast('Push alerts enabled.');
+    } catch (error) {
+      console.warn('YardScout push alerts are unavailable:', error);
+      showToast('Push alerts could not be enabled on this device.');
+    }
+  }
+
+  async function loadPushNotifications() {
+    if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) return;
+    try {
+      const config = await fetch('/api/push/config').then(response => response.json());
+      pushNotificationsAvailable = Boolean(config.enabled && config.public_key);
+      if (!pushNotificationsAvailable) return;
+      const registration = await navigator.serviceWorker.ready;
+      pushSubscriptionActive = Boolean(await registration.pushManager.getSubscription());
+      renderNotifications();
+    } catch {
+      pushNotificationsAvailable = false;
+    }
   }
 
   async function loadFollowedCreators() {
@@ -3163,6 +3227,7 @@
             <a href="/logout" class="btn-logout">Sign out</a>
           </div>`;
         await Promise.all([loadFollowedCreators(), loadNotifications(), loadSavedSales()]);
+        loadPushNotifications();
         startNotificationRefresh();
       } else {
         currentUserEmail = null;

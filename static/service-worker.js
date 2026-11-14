@@ -1,10 +1,42 @@
-const CACHE_NAME = 'yardscout-shell-v2';
+const CACHE_NAME = 'yardscout-shell-v3';
 const SHELL_URLS = [
   '/',
   '/static/offline.html',
   '/static/manifest.webmanifest',
   '/static/yardscout-icon.svg'
 ];
+
+self.addEventListener('push', event => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : 'You have a new YardScout notification.' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'YardScout', {
+      body: data.body || 'You have a new YardScout notification.',
+      icon: '/static/yardscout-icon.svg',
+      badge: '/static/yardscout-icon.svg',
+      data: { url: data.url || '/' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || '/', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      const existing = clients.find(client => 'focus' in client);
+      if (existing) {
+        existing.navigate(url);
+        return existing.focus();
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
 
 self.addEventListener('install', event => {
   event.waitUntil(

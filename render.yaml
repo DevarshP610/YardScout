@@ -31,3 +31,9 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_CLAIMS_EMAIL
+        value: mailto:admin@yardscout.me

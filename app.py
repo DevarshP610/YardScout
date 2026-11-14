@@ -16,6 +16,12 @@ from urllib.parse import urlsplit
 import requests
 
 try:
+    from pywebpush import WebPushException, webpush
+except ImportError:  # pragma: no cover - optional until push delivery is configured
+    WebPushException = None
+    webpush = None
+
+try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 except ImportError:  # pragma: no cover - fallback when Postgres driver is unavailable
@@ -66,6 +72,9 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USERNAME).strip()
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@yardscout.me").strip()
 scrape_lock = threading.Lock()
 mutation_windows = {}
 mutation_window_lock = threading.Lock()
@@ -243,6 +252,16 @@ def init_db(mark_stale_scrapes=True):
                 PRIMARY KEY (user_email, sale_id)
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                user_email TEXT NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
@@ -257,6 +276,10 @@ def init_db(mark_stale_scrapes=True):
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_saved_sales_user "
             "ON saved_sales(user_email, created_at DESC)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user "
+            "ON push_subscriptions(user_email)"
         )
         if mark_stale_scrapes:
             cur.execute(
@@ -323,6 +346,16 @@ def init_db(mark_stale_scrapes=True):
                 PRIMARY KEY (user_email, sale_id)
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                endpoint TEXT PRIMARY KEY,
+                user_email TEXT NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date)")
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_sales_user_email ON sales(user_email)"
@@ -337,6 +370,10 @@ def init_db(mark_stale_scrapes=True):
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_saved_sales_user "
             "ON saved_sales(user_email, created_at DESC)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user "
+            "ON push_subscriptions(user_email)"
         )
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS job_type TEXT NOT NULL DEFAULT 'location'")
         cur.execute("ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS progress INTEGER NOT NULL DEFAULT 0")
@@ -387,6 +424,74 @@ def send_notification_email(recipient, subject, body):
         server.send_message(message)
 
 
+def push_notifications_enabled():
+    return bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY and webpush)
+
+
+def delete_push_subscription(endpoint, user_email=None):
+    conn = get_db()
+    cur = conn.cursor()
+    if USE_SQLITE and user_email is None:
+        cur.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+    elif USE_SQLITE:
+        cur.execute(
+            "DELETE FROM push_subscriptions WHERE endpoint = ? AND user_email = ?",
+            (endpoint, user_email),
+        )
+    elif user_email is None:
+        cur.execute("DELETE FROM push_subscriptions WHERE endpoint = %s", (endpoint,))
+    else:
+        cur.execute(
+            "DELETE FROM push_subscriptions WHERE endpoint = %s AND user_email = %s",
+            (endpoint, user_email),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def send_notification_push(recipient, message, sale_id):
+    if not push_notifications_enabled():
+        return
+    conn = get_db()
+    cur = conn.cursor()
+    placeholder = "?" if USE_SQLITE else "%s"
+    cur.execute(
+        f"SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_email = {placeholder}",
+        (recipient,),
+    )
+    subscriptions = [row_as_dict(row) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    payload = json.dumps({
+        "title": "New sale from a creator you follow",
+        "body": message,
+        "url": f"/?sale={sale_id}",
+    })
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": subscription["endpoint"],
+                    "keys": {
+                        "p256dh": subscription["p256dh"],
+                        "auth": subscription["auth"],
+                    },
+                },
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_CLAIMS_EMAIL},
+            )
+        except WebPushException as exc:
+            response = getattr(exc, "response", None)
+            if response is not None and response.status_code in {404, 410}:
+                delete_push_subscription(subscription["endpoint"], recipient)
+            else:
+                print(f"Push notification to {recipient} failed: {exc}", file=sys.stderr)
+        except (OSError, ValueError) as exc:
+            print(f"Push notification to {recipient} failed: {exc}", file=sys.stderr)
+
+
 def notify_creator_followers(sale):
     creator_email = normalized_email(sale.get("user_email"))
     if not creator_email:
@@ -423,6 +528,7 @@ def notify_creator_followers(sale):
     cur.close()
     conn.close()
     for recipient in recipients:
+        send_notification_push(recipient, message, sale["id"])
         try:
             send_notification_email(
                 recipient,
@@ -729,6 +835,71 @@ def notifications():
     cur.close()
     conn.close()
     return jsonify(result)
+
+
+@app.route("/api/push/config")
+def push_config():
+    return jsonify({
+        "enabled": push_notifications_enabled(),
+        "public_key": VAPID_PUBLIC_KEY if push_notifications_enabled() else None,
+    })
+
+
+@app.route("/api/push/subscription", methods=["POST", "DELETE"])
+def push_subscription():
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Login required"}), 401
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get("endpoint") if isinstance(data, dict) else None
+    if not isinstance(endpoint, str) or not endpoint.startswith("https://") or len(endpoint) > 2048:
+        return jsonify({"error": "A valid push endpoint is required."}), 400
+    if request.method == "DELETE":
+        delete_push_subscription(endpoint, normalized_email(user.get("email")))
+        return jsonify({"subscribed": False})
+    keys = data.get("keys") if isinstance(data.get("keys"), dict) else {}
+    p256dh = keys.get("p256dh")
+    auth = keys.get("auth")
+    if (
+        not isinstance(p256dh, str) or not p256dh
+        or not isinstance(auth, str) or not auth
+    ):
+        return jsonify({"error": "Push subscription keys are required."}), 400
+    user_email = normalized_email(user.get("email"))
+    conn = get_db()
+    cur = conn.cursor()
+    if USE_SQLITE:
+        cur.execute(
+            """
+            INSERT INTO push_subscriptions
+                (endpoint, user_email, p256dh, auth, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(endpoint) DO UPDATE SET
+                user_email = excluded.user_email,
+                p256dh = excluded.p256dh,
+                auth = excluded.auth,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (endpoint, user_email, p256dh, auth),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO push_subscriptions
+                (endpoint, user_email, p256dh, auth, updated_at)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (endpoint) DO UPDATE SET
+                user_email = EXCLUDED.user_email,
+                p256dh = EXCLUDED.p256dh,
+                auth = EXCLUDED.auth,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (endpoint, user_email, p256dh, auth),
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"subscribed": True}), 201
 
 
 @app.route("/api/saved-sales", methods=["GET", "POST"])

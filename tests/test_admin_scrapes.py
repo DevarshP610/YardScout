@@ -381,7 +381,7 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(icon.status_code, 200)
         self.assertIn("<svg", icon.get_data(as_text=True))
         self.assertEqual(service_worker.status_code, 200)
-        self.assertIn("yardscout-shell-v2", service_worker.get_data(as_text=True))
+        self.assertIn("yardscout-shell-v3", service_worker.get_data(as_text=True))
         self.assertIn("pathname.startsWith('/static/')", service_worker.get_data(as_text=True))
         self.assertEqual(offline_page.status_code, 200)
         self.assertIn("YardScout is offline", offline_page.get_data(as_text=True))
@@ -424,6 +424,69 @@ class AdminScrapeTests(unittest.TestCase):
         self.assertEqual(len(notifications), 1)
         self.assertIn("Creator posted", notifications[0]["message"])
         self.assertIsNone(notifications[0]["read_at"])
+
+    def test_push_config_is_disabled_without_vapid_keys(self):
+        response = self.client.get("/api/push/config")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"enabled": False, "public_key": None})
+
+    def test_push_subscription_requires_login_and_valid_keys(self):
+        anonymous_client = app.app.test_client()
+        payload = {
+            "endpoint": "https://push.example.test/subscription",
+            "keys": {"p256dh": "public-key", "auth": "auth-secret"},
+        }
+        self.assertEqual(
+            anonymous_client.post("/api/push/subscription", json=payload).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/api/push/subscription",
+                json={"endpoint": "http://insecure.example.test", "keys": payload["keys"]},
+            ).status_code,
+            400,
+        )
+
+    def test_push_subscription_is_private_and_can_be_removed(self):
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "push-user@example.test"}
+        payload = {
+            "endpoint": "https://push.example.test/subscription",
+            "keys": {"p256dh": "public-key", "auth": "auth-secret"},
+        }
+        response = self.client.post("/api/push/subscription", json=payload)
+        self.assertEqual(response.status_code, 201)
+
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT user_email, p256dh, auth FROM push_subscriptions WHERE endpoint = ?",
+                (payload["endpoint"],),
+            ).fetchone()
+        self.assertEqual(dict(row), {
+            "user_email": "push-user@example.test",
+            "p256dh": "public-key",
+            "auth": "auth-secret",
+        })
+
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "another-user@example.test"}
+        self.assertEqual(
+            self.client.delete("/api/push/subscription", json={"endpoint": payload["endpoint"]}).status_code,
+            200,
+        )
+        with self._connect() as conn:
+            self.assertIsNotNone(conn.execute(
+                "SELECT endpoint FROM push_subscriptions WHERE endpoint = ?",
+                (payload["endpoint"],),
+            ).fetchone())
+        with self.client.session_transaction() as session:
+            session["user"] = {"email": "push-user@example.test"}
+        self.assertEqual(
+            self.client.delete("/api/push/subscription", json={"endpoint": payload["endpoint"]}).status_code,
+            200,
+        )
 
     def test_starting_regional_scan_is_admin_only_and_persists_job(self):
         with patch.object(app.threading.Thread, "start", autospec=True):
